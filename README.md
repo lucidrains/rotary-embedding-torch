@@ -27,7 +27,7 @@ freqs = pos_emb(torch.arange(1024), cache_key = 1024) # cache with a key that is
 q = torch.randn(1, 1024, 64) # queries - (batch, seq len, dimension of head)
 k = torch.randn(1, 1024, 64) # keys
 
-# apply the rotations to your queries and keys prior to the dot product and subsequent softmax (attention)
+# apply the rotations to your queries and keys after the heads have been split out, but prior to the dot product and subsequent softmax (attention)
 
 freqs = freqs[None, ...] # unsqueeze for batch dimension
 q = apply_rotary_emb(freqs, q)
