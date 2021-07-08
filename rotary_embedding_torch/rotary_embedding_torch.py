@@ -26,7 +26,8 @@ class RotaryEmbedding(nn.Module):
         freqs_for = 'lang',
         theta = 10000,
         max_freq = 10,
-        custom_freqs = None
+        custom_freqs = None,
+        learned_freq = False
     ):
         super().__init__()
         if freqs_for == 'lang':
@@ -39,7 +40,11 @@ class RotaryEmbedding(nn.Module):
             raise ValueError(f'unknown modality {freqs_for}')
 
         self.cache = dict()
-        self.register_buffer('freqs', freqs)
+
+        if learned_freq:
+            self.freqs = nn.Parameter(freqs)
+        else:
+            self.register_buffer('freqs', freqs)
 
     def forward(self, t, cache_key = None):
         if exists(cache_key) and cache_key in self.cache:
