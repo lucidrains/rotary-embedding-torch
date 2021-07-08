@@ -30,12 +30,12 @@ class RotaryEmbedding(nn.Module):
         learned_freq = False
     ):
         super().__init__()
-        if freqs_for == 'lang':
+        if exists(custom_freqs):
+            freqs = custom_freqs
+        elif freqs_for == 'lang':
             freqs = 1. / (theta ** (torch.arange(0, dim, 2).float() / dim))
         elif freqs_for == 'pixel':
             freqs = torch.logspace(0., log(max_freq / 2) / log(2), dim // 2, base = 2) * pi
-        elif exists(custom_freqs):
-            freqs = custom_freqs
         else:
             raise ValueError(f'unknown modality {freqs_for}')
 
