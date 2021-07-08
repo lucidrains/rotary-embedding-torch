@@ -1,3 +1,4 @@
+from math import pi, log
 import torch
 from torch import nn, einsum
 
@@ -19,9 +20,24 @@ def apply_rotary_emb(freqs, t, start_index = 0):
     return torch.cat((t_left, t, t_right), dim = -1)
 
 class RotaryEmbedding(nn.Module):
-    def __init__(self, dim, theta = 10000):
+    def __init__(
+        self,
+        dim,
+        freqs_for = 'lang',
+        theta = 10000,
+        max_freq = 10,
+        custom_freqs = None
+    ):
         super().__init__()
-        freqs = 1. / (theta ** (torch.arange(0, dim, 2).float() / dim))
+        if freqs_for == 'lang':
+            freqs = 1. / (theta ** (torch.arange(0, dim, 2).float() / dim))
+        elif freqs_for == 'pixel':
+            freqs = torch.logspace(0., log(max_freq / 2) / log(2), dim // 2, base = 2) * pi
+        elif exists(custom_freqs):
+            freqs = custom_freqs
+        else:
+            raise ValueError(f'unknown modality {freqs_for}')
+
         self.cache = dict()
         self.register_buffer('freqs', freqs)
 
