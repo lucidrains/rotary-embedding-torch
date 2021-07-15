@@ -79,6 +79,8 @@ k = apply_rotary_emb(freqs, k)
 
 For injecting learned rotations into a network. Experiments pending
 
+Update: doesn't seem to do anything -_-, will keep trying...
+
 ```python
 import torch
 from torch import nn
