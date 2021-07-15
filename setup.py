@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
   name = 'rotary-embedding-torch',
   packages = find_packages(),
-  version = '0.0.9',
+  version = '0.0.10',
   license='MIT',
   description = 'Rotary Embedding - Pytorch',
   author = 'Phil Wang',

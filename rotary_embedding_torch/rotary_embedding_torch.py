@@ -44,7 +44,11 @@ def apply_rotary_emb(freqs, t, start_index = 0):
 
 # learned rotation helpers
 
-def apply_learned_rotations(rotations, t, start_index = 0):
+def apply_learned_rotations(rotations, t, start_index = 0, freq_ranges = None):
+    if exists(freq_ranges):
+        rotations = einsum('..., f -> ... f', rotations, freq_ranges)
+        rotations = rearrange(rotations, '... r f -> ... (r f)')
+
     rotations = repeat(rotations, '... n -> ... (n r)', r = 2)
     return apply_rotary_emb(rotations, t, start_index = start_index)
 
