@@ -6,7 +6,7 @@ My gut also tells me there is something <a href="https://www.nature.com/articles
 
 ## Todo
 
-- [ ] show an example for axial rotary embeddings for images
+- [x] show an example for axial rotary embeddings for images
 - [ ] test learned rotations
 
 ## Install
@@ -44,6 +44,36 @@ k = apply_rotary_emb(freqs, k)
 ```
 
 If you do all the steps above correctly, you should see a dramatic improvement during training
+
+## Axial Rotary Embeddings
+
+For easy use of 2d axial relative positional embedding, ie. vision transformers
+
+```python
+import torch
+from rotary_embedding_torch import apply_rotary_emb, RotaryEmbedding, broadcat
+
+pos_emb = RotaryEmbedding(
+    dim = 32,
+    freqs_for = 'pixel'
+)
+
+q = torch.randn(1, 256, 256, 64)
+k = torch.randn(1, 256, 256, 64)
+
+# -1 to 1 has been shown to be a good choice for images and audio
+
+freqs_h = pos_emb(torch.linspace(-1, 1, steps = 256), cache_key = 256)
+freqs_w = pos_emb(torch.linspace(-1, 1, steps = 256), cache_key = 256)
+
+# concat the frequencies along each axial
+# broadcat function makes this easy without a bunch of expands
+
+freqs = broadcat((freqs_h[None, :, None, :], freqs_w[None, None, :, :]), dim = -1)
+
+q = apply_rotary_emb(freqs, q)
+k = apply_rotary_emb(freqs, k)
+```
 
 ## Citations
 

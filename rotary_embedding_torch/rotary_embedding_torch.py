@@ -4,11 +4,33 @@ from torch import nn, einsum
 
 from einops import rearrange
 
+# helper functions
+
 def exists(val):
     return val is not None
 
+def broadcat(tensors, dim = -1):
+    num_tensors = len(tensors)
+    shape_lens = set(list(map(lambda t: len(t.shape), tensors)))
+    assert len(shape_lens) == 1, 'tensors must all have the same number of dimensions'
+    shape_len = list(shape_lens)[0]
+
+    dim = (dim + shape_len) if dim < 0 else dim
+    dims = list(zip(*map(lambda t: list(t.shape), tensors)))
+
+    expandable_dims = [(i, val) for i, val in enumerate(dims) if i != dim]
+    assert all([*map(lambda t: len(set(t[1])) <= 2, expandable_dims)]), 'invalid dimensions for broadcastable concatentation'
+    max_dims = list(map(lambda t: (t[0], max(t[1])), expandable_dims))
+    expanded_dims = list(map(lambda t: (t[0], (t[1],) * num_tensors), max_dims))
+    expanded_dims.insert(dim, (dim, dims[dim]))
+    expandable_shapes = list(zip(*map(lambda t: t[1], expanded_dims)))
+    tensors = list(map(lambda t: t[0].expand(*t[1]), zip(tensors, expandable_shapes)))
+    return torch.cat(tensors, dim = dim)
+
+# rotary embedding helper functions
+
 def rotate_half(x):
-    x = rearrange(x, 'b n (d r) -> b n d r', r = 2)
+    x = rearrange(x, '... (d r) -> ... d r', r = 2)
     x1, x2 = x.unbind(dim = -1)
     return torch.cat((-x2, x1), dim = -1)
 
@@ -19,14 +41,17 @@ def apply_rotary_emb(freqs, t, start_index = 0):
     t = (t * freqs.cos()) + (rotate_half(t) * freqs.sin())
     return torch.cat((t_left, t, t_right), dim = -1)
 
+# classes
+
 class RotaryEmbedding(nn.Module):
     def __init__(
         self,
         dim,
+        custom_freqs = None,
         freqs_for = 'lang',
         theta = 10000,
         max_freq = 10,
-        custom_freqs = None,
+        num_freqs = 1,
         learned_freq = False
     ):
         super().__init__()
@@ -36,6 +61,8 @@ class RotaryEmbedding(nn.Module):
             freqs = 1. / (theta ** (torch.arange(0, dim, 2).float() / dim))
         elif freqs_for == 'pixel':
             freqs = torch.logspace(0., log(max_freq / 2) / log(2), dim // 2, base = 2) * pi
+        elif freqs_for == 'constant':
+            freqs = torch.ones(num_freqs).float()
         else:
             raise ValueError(f'unknown modality {freqs_for}')
 
