@@ -4,11 +4,6 @@ A standalone library for adding <a href="https://arxiv.org/abs/2104.09864">rotar
 
 My gut also tells me there is something <a href="https://www.nature.com/articles/s41593-021-00821-9">more</a> to rotations that can be exploited in artificial neural networks.
 
-## Todo
-
-- [x] show an example for axial rotary embeddings for images
-- [ ] test learned rotations
-
 ## Install
 
 ```bash
@@ -78,6 +73,40 @@ freqs = broadcat((freqs_h[None, :, None, :], freqs_w[None, None, :, :]), dim = -
 
 q = apply_rotary_emb(freqs, q)
 k = apply_rotary_emb(freqs, k)
+```
+
+## Learned Rotations
+
+For injecting learned rotations into a network. Experiments pending
+
+```python
+import torch
+from torch import nn
+from rotary_embedding_torch import apply_learned_rotations
+
+x = torch.randn(1, 1024, 512)
+
+# you can only rotate in (dim // 2) values
+# ex. for 512, you can only rotate in 256 values
+
+# say you have two sets of learned rotations of 128 values each
+
+rots1 = nn.Linear(512, 128)(x)
+rots2 = nn.Linear(512, 128)(x)
+
+# you rotate in 256 (128 x 2) at first
+
+x = apply_learned_rotations(rots1, x, start_index = 0)
+
+# then you start at index 256 and rotate in the last (128 x 2)
+
+x = apply_learned_rotations(rots2, x, start_index = 256)
+
+# you could also concat the rotations together and pass it in all at once
+
+rots = torch.cat((rots1, rots2), dim = -1)
+
+x = apply_learned_rotations(rots, x)
 ```
 
 ## Citations
