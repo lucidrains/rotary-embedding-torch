@@ -34,7 +34,8 @@ def broadcat(tensors, dim = -1):
 def rotate_half(x):
     x = rearrange(x, '... (d r) -> ... d r', r = 2)
     x1, x2 = x.unbind(dim = -1)
-    return torch.cat((-x2, x1), dim = -1)
+    x = torch.stack((-x2, x1), dim = -1)
+    return rearrange(x, '... d r -> ... (d r)')
 
 def apply_rotary_emb(freqs, t, start_index = 0):
     rot_dim = freqs.shape[-1]
