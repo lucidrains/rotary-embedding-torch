@@ -1,4 +1,6 @@
+from inspect import isfunction
 from math import pi, log
+
 import torch
 from torch import nn, einsum
 
@@ -87,6 +89,9 @@ class RotaryEmbedding(nn.Module):
     def forward(self, t, cache_key = None):
         if exists(cache_key) and cache_key in self.cache:
             return self.cache[cache_key]
+
+        if isfunction(t):
+            t = t()
 
         freqs = self.freqs
 
