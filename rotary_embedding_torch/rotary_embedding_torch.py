@@ -72,7 +72,7 @@ class RotaryEmbedding(nn.Module):
         if exists(custom_freqs):
             freqs = custom_freqs
         elif freqs_for == 'lang':
-            freqs = 1. / (theta ** (torch.arange(0, dim, 2).float() / dim))
+            freqs = 1. / (theta ** (torch.arange(0, dim, 2)[:(dim // 2)].float() / dim))
         elif freqs_for == 'pixel':
             freqs = torch.logspace(0., log(max_freq / 2) / log(2), dim // 2, base = 2) * pi
         elif freqs_for == 'constant':
