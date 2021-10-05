@@ -50,7 +50,8 @@ from rotary_embedding_torch import apply_rotary_emb, RotaryEmbedding, broadcat
 
 pos_emb = RotaryEmbedding(
     dim = 32,
-    freqs_for = 'pixel'
+    freqs_for = 'pixel',
+    max_freq = 256
 )
 
 # queries and keys for frequencies to be rotated into

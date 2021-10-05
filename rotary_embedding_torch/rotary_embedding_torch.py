@@ -74,7 +74,7 @@ class RotaryEmbedding(nn.Module):
         elif freqs_for == 'lang':
             freqs = 1. / (theta ** (torch.arange(0, dim, 2)[:(dim // 2)].float() / dim))
         elif freqs_for == 'pixel':
-            freqs = torch.logspace(0., log(max_freq / 2) / log(2), dim // 2, base = 2) * pi
+            freqs = torch.linspace(1., max_freq / 2, dim // 2) * pi
         elif freqs_for == 'constant':
             freqs = torch.ones(num_freqs).float()
         else:
