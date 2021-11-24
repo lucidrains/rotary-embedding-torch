@@ -38,6 +38,7 @@ def rotate_half(x):
     return rearrange(x, '... d r -> ... (d r)')
 
 def apply_rotary_emb(freqs, t, start_index = 0):
+    freqs = freqs.to(t)
     rot_dim = freqs.shape[-1]
     end_index = start_index + rot_dim
     assert rot_dim <= t.shape[-1], f'feature dimension {t.shape[-1]} is not of sufficient size to rotate in all the positions {rot_dim}'
