@@ -31,7 +31,6 @@ k = torch.randn(1, 1024, 64) # keys
 
 # apply the rotations to your queries and keys after the heads have been split out, but prior to the dot product and subsequent softmax (attention)
 
-freqs = freqs[None, ...] # unsqueeze for batch dimension
 q = apply_rotary_emb(freqs, q)
 k = apply_rotary_emb(freqs, k)
 
@@ -68,7 +67,7 @@ freqs_w = pos_emb(torch.linspace(-1, 1, steps = 256), cache_key = 256)
 # concat the frequencies along each axial
 # broadcat function makes this easy without a bunch of expands
 
-freqs = broadcat((freqs_h[None, :, None, :], freqs_w[None, None, :, :]), dim = -1)
+freqs = broadcat((freqs_h[:, None, :], freqs_w[None, :, :]), dim = -1)
 
 # rotate in frequencies
 
