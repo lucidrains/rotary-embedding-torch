@@ -14,27 +14,23 @@ $ pip install rotary-embedding-torch
 
 ```python
 import torch
-from rotary_embedding_torch import apply_rotary_emb, RotaryEmbedding
+from rotary_embedding_torch import RotaryEmbedding
 
 # instantiate the positional embedding in your transformer and pass to all your attention layers
 
-pos_emb = RotaryEmbedding(dim = 32)
+rotary_emb = RotaryEmbedding(dim = 32)
 
-# generate the rotations
+# mock queries and keys - dimensions should end with (seq_len, feature dimension), and any number of preceding dimensions (batch, heads, etc)
 
-freqs = pos_emb(torch.arange(1024), cache_key = 1024) # cache with a key that is the sequence length, so that it does not need to recompute
-
-# mock queries and keys
-
-q = torch.randn(1, 1024, 64) # queries - (batch, seq len, dimension of head)
-k = torch.randn(1, 1024, 64) # keys
+q = torch.randn(1, 8, 1024, 64) # queries - (batch, heads, seq len, dimension of head)
+k = torch.randn(1, 8, 1024, 64) # keys
 
 # apply the rotations to your queries and keys after the heads have been split out, but prior to the dot product and subsequent softmax (attention)
 
-q = apply_rotary_emb(freqs, q)
-k = apply_rotary_emb(freqs, k)
+q = rotary_emb.rotate_queries_or_keys(q)
+k = rotary_emb.rotate_queries_or_keys(k)
 
-# then do your attention with your queries (q) and keys (k)
+# then do your attention with your queries (q) and keys (k) as usual
 ```
 
 If you do all the steps above correctly, you should see a dramatic improvement during training
