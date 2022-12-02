@@ -88,10 +88,10 @@ class RotaryEmbedding(nn.Module):
         else:
             self.register_buffer('freqs', freqs)
 
-    def rotate_queries_or_keys(self, t, seq_dim = -2):
+    def rotate_queries_or_keys(self, t, seq_dim = -2, start_pos = 0):
         device = t.device
         seq_len = t.shape[seq_dim]
-        freqs = self.forward(lambda: torch.arange(seq_len, device = device), cache_key = seq_len)
+        freqs = self.forward(lambda: torch.arange(start_pos, start_pos + seq_len, device = device), cache_key = seq_len)
         return apply_rotary_emb(freqs, t)
 
     def forward(self, t, cache_key = None):
