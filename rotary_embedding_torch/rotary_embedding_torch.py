@@ -1,4 +1,3 @@
-from inspect import isfunction
 from math import pi, log
 
 import torch
@@ -37,13 +36,13 @@ def rotate_half(x):
     x = torch.stack((-x2, x1), dim = -1)
     return rearrange(x, '... d r -> ... (d r)')
 
-def apply_rotary_emb(freqs, t, start_index = 0):
+def apply_rotary_emb(freqs, t, start_index = 0, scale = 1.):
     freqs = freqs.to(t)
     rot_dim = freqs.shape[-1]
     end_index = start_index + rot_dim
     assert rot_dim <= t.shape[-1], f'feature dimension {t.shape[-1]} is not of sufficient size to rotate in all the positions {rot_dim}'
     t_left, t, t_right = t[..., :start_index], t[..., start_index:end_index], t[..., end_index:]
-    t = (t * freqs.cos()) + (rotate_half(t) * freqs.sin())
+    t = (t * freqs.cos() * scale) + (rotate_half(t) * freqs.sin() * scale)
     return torch.cat((t_left, t, t_right), dim = -1)
 
 # learned rotation helpers
@@ -67,7 +66,9 @@ class RotaryEmbedding(nn.Module):
         theta = 10000,
         max_freq = 10,
         num_freqs = 1,
-        learned_freq = False
+        learned_freq = False,
+        use_xpos = False,
+        xpos_scale_base = 512,
     ):
         super().__init__()
         if exists(custom_freqs):
@@ -82,23 +83,59 @@ class RotaryEmbedding(nn.Module):
             raise ValueError(f'unknown modality {freqs_for}')
 
         self.cache = dict()
+        self.cache_scale = dict()
+        self.freqs = nn.Parameter(freqs, requires_grad = learned_freq)
 
-        if learned_freq:
-            self.freqs = nn.Parameter(freqs)
-        else:
-            self.register_buffer('freqs', freqs)
+        self.use_xpos = use_xpos
+        if not use_xpos:
+            self.register_buffer('scale', None)
+            return
+
+        scale = (torch.arange(0, dim, 2) + 0.4 * dim) / (1.4 * dim)
+        self.scale_base = xpos_scale_base
+        self.register_buffer('scale', scale)
 
     def rotate_queries_or_keys(self, t, seq_dim = -2):
-        device = t.device
-        seq_len = t.shape[seq_dim]
+        assert not self.use_xpos, 'you must use `.rotate_queries_and_keys` method instead and pass in both queries and keys, for length extrapolatable rotary embeddings'
+        device, seq_len = t.device, t.shape[seq_dim]
         freqs = self.forward(lambda: torch.arange(seq_len, device = device), cache_key = seq_len)
         return apply_rotary_emb(freqs, t)
+
+    def rotate_queries_and_keys(self, q, k, seq_dim = -2):
+        assert self.use_xpos
+        device, seq_len = q.device, q.shape[seq_dim]
+        seq = torch.arange(seq_len, device = device)
+        freqs = self.forward(lambda: seq, cache_key = seq_len)
+        scale = self.get_scale(lambda: seq, cache_key = seq_len)
+        rotated_q = apply_rotary_emb(freqs, q, scale = scale)
+        rotated_k = apply_rotary_emb(freqs, k, scale = scale ** -1)
+        return rotated_q, rotated_k
+
+    def get_scale(self, t, cache_key = None):
+        assert self.use_xpos
+
+        if exists(cache_key) and cache_key in self.cache:
+            return self.cache[cache_key]
+
+        if callable(t):
+            t = t()
+
+        scale = 1.
+        if self.use_xpos:
+            power = t - (len(t) // 2) / self.scale_base
+            scale = self.scale ** rearrange(power, 'n -> n 1')
+            scale = torch.cat((scale, scale), dim = -1)
+
+        if exists(cache_key):
+            self.cache[cache_key] = freqs
+
+        return scale
 
     def forward(self, t, cache_key = None):
         if exists(cache_key) and cache_key in self.cache:
             return self.cache[cache_key]
 
-        if isfunction(t):
+        if callable(t):
             t = t()
 
         freqs = self.freqs
