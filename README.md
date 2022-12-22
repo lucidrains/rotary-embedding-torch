@@ -73,7 +73,9 @@ k = apply_rotary_emb(freqs, k)
 
 ## Length Extrapolatable Rotary Embeddings
 
-In <a href="https://arxiv.org/abs/2212.10554v1">this paper</a>, they were able to fix length extrapolation issue with rotary embeddings by giving it a decay similar to ALiBi. They named this technique XPos, and you can use it by setting `use_xpos = True` on initialization
+In <a href="https://arxiv.org/abs/2212.10554v1">this paper</a>, they were able to fix length extrapolation issue with rotary embeddings by giving it a decay similar to ALiBi. They named this technique XPos, and you can use it by setting `use_xpos = True` on initialization.
+
+This can only be used for autoregressive transformers
 
 ```python
 import torch
