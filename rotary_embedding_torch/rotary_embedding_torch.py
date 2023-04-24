@@ -127,7 +127,7 @@ class RotaryEmbedding(nn.Module):
             scale = torch.cat((scale, scale), dim = -1)
 
         if exists(cache_key):
-            self.cache[cache_key] = freqs
+            self.cache[cache_key] = self.freqs
 
         return scale
 
