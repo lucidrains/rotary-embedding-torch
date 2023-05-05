@@ -122,7 +122,7 @@ class RotaryEmbedding(nn.Module):
 
         scale = 1.
         if self.use_xpos:
-            power = t - (len(t) // 2) / self.scale_base
+            power = (t - len(t) // 2) / self.scale_base
             scale = self.scale ** rearrange(power, 'n -> n 1')
             scale = torch.cat((scale, scale), dim = -1)
 
