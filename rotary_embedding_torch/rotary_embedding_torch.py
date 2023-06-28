@@ -69,6 +69,7 @@ class RotaryEmbedding(nn.Module):
         learned_freq = False,
         use_xpos = False,
         xpos_scale_base = 512,
+        interpolate_factor = 1.
     ):
         super().__init__()
         if exists(custom_freqs):
@@ -86,6 +87,13 @@ class RotaryEmbedding(nn.Module):
         self.cache_scale = dict()
         self.freqs = nn.Parameter(freqs, requires_grad = learned_freq)
 
+        # interpolation factors
+
+        assert interpolate_factor >= 1.
+        self.interpolate_factor = interpolate_factor
+
+        # xpos
+
         self.use_xpos = use_xpos
         if not use_xpos:
             self.register_buffer('scale', None)
@@ -95,16 +103,19 @@ class RotaryEmbedding(nn.Module):
         self.scale_base = xpos_scale_base
         self.register_buffer('scale', scale)
 
-    def rotate_queries_or_keys(self, t, seq_dim = -2):
+    def get_seq_pos(self, seq_len, device, dtype, offset = 0):
+        return (torch.arange(seq_len, device = device, dtype = dtype) + offset) / self.interpolate_factor
+
+    def rotate_queries_or_keys(self, t, seq_dim = -2, offset = 0):
         assert not self.use_xpos, 'you must use `.rotate_queries_and_keys` method instead and pass in both queries and keys, for length extrapolatable rotary embeddings'
-        device, seq_len = t.device, t.shape[seq_dim]
-        freqs = self.forward(lambda: torch.arange(seq_len, device = device), cache_key = seq_len)
+        device, dtype, seq_len = t.device, t.dtype, t.shape[seq_dim]
+        freqs = self.forward(lambda: self.get_seq_pos(seq_len, device = device, dtype = dtype, offset = offset), cache_key = f'freqs:{seq_len}')
         return apply_rotary_emb(freqs, t)
 
     def rotate_queries_and_keys(self, q, k, seq_dim = -2):
         assert self.use_xpos
         device, dtype, seq_len = q.device, q.dtype, q.shape[seq_dim]
-        seq = torch.arange(seq_len, dtype = dtype, device = device)
+        seq = self.get_seq_pos(seq_len, dtype = dtype, device = device)
         freqs = self.forward(lambda: seq, cache_key = f'freqs:{seq_len}')
         scale = self.get_scale(lambda: seq, cache_key = f'scale:{seq_len}').to(dtype)
         rotated_q = apply_rotary_emb(freqs, q, scale = scale)
