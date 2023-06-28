@@ -103,10 +103,10 @@ class RotaryEmbedding(nn.Module):
 
     def rotate_queries_and_keys(self, q, k, seq_dim = -2):
         assert self.use_xpos
-        device, seq_len = q.device, q.shape[seq_dim]
-        seq = torch.arange(seq_len, device = device)
+        device, dtype, seq_len = q.device, q.dtype, q.shape[seq_dim]
+        seq = torch.arange(seq_len, dtype = dtype, device = device)
         freqs = self.forward(lambda: seq, cache_key = f'freqs:{seq_len}')
-        scale = self.get_scale(lambda: seq, cache_key = f'scale:{seq_len}')
+        scale = self.get_scale(lambda: seq, cache_key = f'scale:{seq_len}').to(dtype)
         rotated_q = apply_rotary_emb(freqs, q, scale = scale)
         rotated_k = apply_rotary_emb(freqs, k, scale = scale ** -1)
         return rotated_q, rotated_k
