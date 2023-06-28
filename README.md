@@ -100,6 +100,22 @@ k = torch.randn(1, 8, 1024, 64) # keys
 q, k = rotary_emb.rotate_queries_and_keys(q, k)
 ```
 
+## Interpolating Sequence Positions
+
+This MetaAI <a href="https://arxiv.org/abs//2306.15595">paper</a> proposes simply fine-tuning on interpolations of the sequence positions for extending to longer context length for pretrained models. They show this performs much better than simply fine-tuning on the same sequence positions but extended further.
+
+You can use this by simply setting the `interpolation_factor` on initialization to a value greater than `1.` (ex. if pretrained model was trained on 2048, setting `interpolation_factor = 2.` would allow fine-tuning to `2048 x 2. = 4096`)
+
+```python
+import torch
+from rotary_embedding_torch import RotaryEmbedding
+
+rotary_emb = RotaryEmbedding(
+    dim = 32,
+    interpolate_factor = 2.    # add this line of code to pretrained model and fine-tune for ~1000 steps, as shown in paper
+)
+```
+
 ## Citations
 
 ```bibtex
@@ -118,5 +134,13 @@ q, k = rotary_emb.rotate_queries_and_keys(q, k)
     title     = {A Length-Extrapolatable Transformer},
     author    = {Yutao Sun and Li Dong and Barun Patra and Shuming Ma and Shaohan Huang and Alon Benhaim and Vishrav Chaudhary and Xia Song and Furu Wei},
     year      = {2022}
+}
+```
+
+```bibtex
+@inproceedings{Chen2023ExtendingCW,
+    title   = {Extending Context Window of Large Language Models via Positional Interpolation},
+    author  = {Shouyuan Chen and Sherman Wong and Liangjian Chen and Yuandong Tian},
+    year    = {2023}
 }
 ```
