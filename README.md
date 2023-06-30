@@ -106,6 +106,7 @@ This MetaAI <a href="https://arxiv.org/abs//2306.15595">paper</a> proposes simpl
 
 You can use this by setting the `interpolate_factor` on initialization to a value greater than `1.` (ex. if pretrained model was trained on 2048, setting `interpolate_factor = 2.` would allow fine-tuning to `2048 x 2. = 4096`)
 
+Update: someone in the community has reported that it does not work well. please email me if you see either a positive or negative result
 
 ```python
 import torch
