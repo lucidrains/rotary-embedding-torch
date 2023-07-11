@@ -2,6 +2,8 @@
 
 ## Rotary Embeddings - Pytorch
 
+This library is based on LucidRains [rotary-embedding-torch](https://github.com/lucidrains/rotary-embedding-torch), with the addition of allowing the user to manually pass in the positional indices to the `rotate_queries_or_keys` function. This is useful for when you have custom indices which do not increase linearly. For example when "inputs" have been removed from the sequence, but you still want to signal the relative position of the remaining tokens.
+
 A standalone library for adding <a href="https://arxiv.org/abs/2104.09864">rotary embeddings</a> to transformers in Pytorch, following its success as <a href="https://blog.eleuther.ai/rotary-embeddings/">relative positional encoding</a>. Specifically it will make rotating information into any axis of a tensor easy and efficient, whether they be fixed positional or learned. This library will give you state of the art results for positional embedding, at little costs.
 
 My gut also tells me there is something <a href="https://www.nature.com/articles/s41593-021-00821-9">more</a> to rotations that can be exploited in artificial neural networks.
@@ -36,6 +38,31 @@ k = rotary_emb.rotate_queries_or_keys(k)
 ```
 
 If you do all the steps above correctly, you should see a dramatic improvement during training
+
+## Usage with custom positional indices
+
+```python
+import torch
+from rotary_embedding_torch import RotaryEmbedding
+
+# instantiate the positional embedding in your transformer and pass to all your attention layers
+
+rotary_emb = RotaryEmbedding(dim = 32)
+
+# mock queries and keys - dimensions should end with (seq_len, feature dimension), and any number of preceding dimensions (batch, heads, etc)
+
+q = torch.randn(1, 8, 1024, 64) # queries - (batch, heads, seq len, dimension of head)
+k = torch.randn(1, 8, 1024, 64) # keys
+
+# apply the rotations to your queries and keys after the heads have been split out, but prior to the dot product and subsequent softmax (attention)
+# when not modifying the indices, it has the same effect as not passing the indices
+indices = torch.arange(1024).unsqueeze(0) # indices must be the same length as the sequence length
+
+q = rotary_emb.rotate_queries_or_keys(q, indices = indices) # indices must be the same length as the sequence length
+k = rotary_emb.rotate_queries_or_keys(k, indices = indices) # indices must be the same length as the sequence length
+
+# 
+```
 
 ## Axial Rotary Embeddings
 

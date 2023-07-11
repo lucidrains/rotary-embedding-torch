@@ -44,7 +44,19 @@ def apply_rotary_emb(freqs, t, start_index = 0, scale = 1., seq_dim = -2):
     assert rot_dim <= t.shape[-1], f'feature dimension {t.shape[-1]} is not of sufficient size to rotate in all the positions {rot_dim}'
 
     t_left, t, t_right = t[..., :start_index], t[..., start_index:end_index], t[..., end_index:]
-    t = (t * freqs.cos() * scale) + (rotate_half(t) * freqs.sin() * scale)
+
+    cos = freqs.cos().unsqueeze(1)
+    sin = freqs.sin().unsqueeze(1)
+
+    # print('cos shape', cos.shape)
+    # print('sin shape', sin.shape)
+    # print('t shape', t.shape)
+
+    # cos = freqs.cos().unsqueeze(0) #.unsqueeze(0)
+    cos_t= t * cos * scale
+    sin_t = rotate_half(t) * sin * scale
+    t = cos_t + sin_t
+    # t = (t * freqs.cos() * scale) + (rotate_half(t) * freqs.sin() * scale)
     return torch.cat((t_left, t, t_right), dim = -1)
 
 # learned rotation helpers
@@ -140,10 +152,13 @@ class RotaryEmbedding(Module):
     def tmp_store(self, key, value):
         self.register_buffer(key, value, persistent = False)
 
-    def get_seq_pos(self, seq_len, device, dtype, offset = 0):
-        return (torch.arange(seq_len, device = device, dtype = dtype) + offset) / self.interpolate_factor
+    def get_indexed_seq_pos(self, indices, device, dtype):
+        return indices.type(dtype=dtype).to(device) / self.interpolate_factor
 
-    def rotate_queries_or_keys(self, t, seq_dim = None, offset = 0, freq_seq_len = None):
+    def get_seq_pos(self, seq_len, device, dtype, offset = 0):
+        return (torch.arange(seq_len, device = device, dtype = dtype).unsqueeze(0) + offset) / self.interpolate_factor
+
+    def rotate_queries_or_keys(self, t, seq_dim = None, offset = 0, indices = None, freq_seq_len = None):
         seq_dim = default(seq_dim, self.default_seq_dim)
 
         assert not self.use_xpos, 'you must use `.rotate_queries_and_keys` method instead and pass in both queries and keys, for length extrapolatable rotary embeddings'
@@ -154,11 +169,15 @@ class RotaryEmbedding(Module):
             assert freq_seq_len >= seq_len
             seq_len = freq_seq_len
 
-        freqs = self.forward(self.get_seq_pos(seq_len, device = device, dtype = dtype, offset = offset), seq_len = seq_len, offset = offset)
+        if indices is None:
+            freqs = self.forward(self.get_seq_pos(seq_len, device = device, dtype = dtype, offset = offset), seq_len = seq_len, offset = offset)
+        else:
+            freqs = self.forward(self.get_indexed_seq_pos(indices, device, dtype), seq_len = seq_len, offset = offset)
 
         if seq_dim == -3:
             freqs = rearrange(freqs, 'n d -> n 1 d')
 
+        # print("freqs", freqs.shape, "t", t.shape)
         return apply_rotary_emb(freqs, t, seq_dim = seq_dim)
 
     def rotate_queries_with_cached_keys(self, q, k, seq_dim = None, offset = 0):
