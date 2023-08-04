@@ -69,9 +69,15 @@ class RotaryEmbedding(nn.Module):
         learned_freq = False,
         use_xpos = False,
         xpos_scale_base = 512,
-        interpolate_factor = 1.
+        interpolate_factor = 1.,
+        theta_rescale_factor = 1.
     ):
         super().__init__()
+        # proposed by reddit user bloc97, to rescale rotary embeddings to longer sequence length without fine-tuning
+        # has some connection to NTK literature
+        # https://www.reddit.com/r/LocalLLaMA/comments/14lz7j5/ntkaware_scaled_rope_allows_llama_models_to_have/
+        theta *= theta_rescale_factor ** (dim / (dim - 2))
+
         if exists(custom_freqs):
             freqs = custom_freqs
         elif freqs_for == 'lang':

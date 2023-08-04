@@ -146,3 +146,11 @@ rotary_emb = RotaryEmbedding(
     year    = {2023}
 }
 ```
+
+```bibtex
+@misc{bloc97-2023
+    title   = {NTK-Aware Scaled RoPE allows LLaMA models to have extended (8k+) context size without any fine-tuning and minimal perplexity degradation.}
+    author  = {/u/bloc97},
+    url     = {https://www.reddit.com/r/LocalLLaMA/comments/14lz7j5/ntkaware_scaled_rope_allows_llama_models_to_have/}
+}
+```
