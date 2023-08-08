@@ -115,7 +115,7 @@ class RotaryEmbedding(nn.Module):
     def rotate_queries_or_keys(self, t, seq_dim = -2, offset = 0):
         assert not self.use_xpos, 'you must use `.rotate_queries_and_keys` method instead and pass in both queries and keys, for length extrapolatable rotary embeddings'
         device, dtype, seq_len = t.device, t.dtype, t.shape[seq_dim]
-        freqs = self.forward(lambda: self.get_seq_pos(seq_len, device = device, dtype = dtype, offset = offset), cache_key = f'freqs:{seq_len}')
+        freqs = self.forward(lambda: self.get_seq_pos(seq_len, device = device, dtype = dtype, offset = offset), cache_key = f'freqs:{seq_len}|offset:{offset}')
         return apply_rotary_emb(freqs, t)
 
     def rotate_queries_and_keys(self, q, k, seq_dim = -2):
