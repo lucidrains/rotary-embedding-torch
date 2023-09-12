@@ -37,8 +37,10 @@ def rotate_half(x):
     return rearrange(x, '... d r -> ... (d r)')
 
 def apply_rotary_emb(freqs, t, start_index = 0, scale = 1.):
+    rot_dim, seq_len = freqs.shape[-1], t.shape[-2]
+    freqs = freqs[-seq_len:, :]
+
     freqs = freqs.to(t)
-    rot_dim = freqs.shape[-1]
     end_index = start_index + rot_dim
     assert rot_dim <= t.shape[-1], f'feature dimension {t.shape[-1]} is not of sufficient size to rotate in all the positions {rot_dim}'
     t_left, t, t_right = t[..., :start_index], t[..., start_index:end_index], t[..., end_index:]
@@ -112,11 +114,24 @@ class RotaryEmbedding(nn.Module):
     def get_seq_pos(self, seq_len, device, dtype, offset = 0):
         return (torch.arange(seq_len, device = device, dtype = dtype) + offset) / self.interpolate_factor
 
-    def rotate_queries_or_keys(self, t, seq_dim = -2, offset = 0):
+    def rotate_queries_or_keys(self, t, seq_dim = -2, offset = 0, freq_seq_len = None):
         assert not self.use_xpos, 'you must use `.rotate_queries_and_keys` method instead and pass in both queries and keys, for length extrapolatable rotary embeddings'
+
         device, dtype, seq_len = t.device, t.dtype, t.shape[seq_dim]
+
+        if exists(freq_seq_len):
+            assert freq_seq_len >= seq_len
+            seq_len = freq_seq_len
+
         freqs = self.forward(lambda: self.get_seq_pos(seq_len, device = device, dtype = dtype, offset = offset), cache_key = f'freqs:{seq_len}|offset:{offset}')
         return apply_rotary_emb(freqs, t)
+
+    def rotate_queries_with_cached_keys(self, q, k, seq_dim = -2):
+        q_len, k_len = q.shape[seq_dim], k.shape[seq_dim]
+        assert q_len <= k_len
+        q = self.rotate_queries_or_keys(q, seq_dim = seq_dim, freq_seq_len = k_len)
+        k = self.rotate_queries_or_keys(k, seq_dim = seq_dim)
+        return q, k
 
     def rotate_queries_and_keys(self, q, k, seq_dim = -2):
         assert self.use_xpos
@@ -157,7 +172,7 @@ class RotaryEmbedding(nn.Module):
 
         freqs = self.freqs
 
-        freqs = torch.einsum('..., f -> ... f', t.type(freqs.dtype), freqs)
+        freqs = einsum('..., f -> ... f', t.type(freqs.dtype), freqs)
         freqs = repeat(freqs, '... n -> ... (n r)', r = 2)
 
         if exists(cache_key):
