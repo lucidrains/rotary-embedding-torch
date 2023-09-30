@@ -10,6 +10,9 @@ from einops import rearrange, repeat
 def exists(val):
     return val is not None
 
+def default(val, d):
+    return val if exists(val) else d
+
 def broadcat(tensors, dim = -1):
     num_tensors = len(tensors)
     shape_lens = set(list(map(lambda t: len(t.shape), tensors)))
@@ -36,11 +39,10 @@ def rotate_half(x):
     x = torch.stack((-x2, x1), dim = -1)
     return rearrange(x, '... d r -> ... (d r)')
 
-def apply_rotary_emb(freqs, t, start_index = 0, scale = 1.):
-    rot_dim, seq_len = freqs.shape[-1], t.shape[-2]
-    freqs = freqs[-seq_len:, :]
+def apply_rotary_emb(freqs, t, start_index = 0, scale = 1., seq_dim = -2):
+    rot_dim, seq_len = freqs.shape[-1], t.shape[seq_dim]
+    freqs = freqs[-seq_len:].to(t)
 
-    freqs = freqs.to(t)
     end_index = start_index + rot_dim
     assert rot_dim <= t.shape[-1], f'feature dimension {t.shape[-1]} is not of sufficient size to rotate in all the positions {rot_dim}'
     t_left, t, t_right = t[..., :start_index], t[..., start_index:end_index], t[..., end_index:]
@@ -72,12 +74,14 @@ class RotaryEmbedding(nn.Module):
         use_xpos = False,
         xpos_scale_base = 512,
         interpolate_factor = 1.,
-        theta_rescale_factor = 1.
+        theta_rescale_factor = 1.,
+        seq_before_head_dim = False
     ):
         super().__init__()
         # proposed by reddit user bloc97, to rescale rotary embeddings to longer sequence length without fine-tuning
         # has some connection to NTK literature
         # https://www.reddit.com/r/LocalLLaMA/comments/14lz7j5/ntkaware_scaled_rope_allows_llama_models_to_have/
+
         theta *= theta_rescale_factor ** (dim / (dim - 2))
 
         if exists(custom_freqs):
@@ -94,6 +98,11 @@ class RotaryEmbedding(nn.Module):
         self.cache = dict()
         self.cache_scale = dict()
         self.freqs = nn.Parameter(freqs, requires_grad = learned_freq)
+
+        # default sequence dimension
+
+        self.seq_before_head_dim = seq_before_head_dim
+        self.default_seq_dim = -3 if seq_before_head_dim else -2
 
         # interpolation factors
 
@@ -114,7 +123,9 @@ class RotaryEmbedding(nn.Module):
     def get_seq_pos(self, seq_len, device, dtype, offset = 0):
         return (torch.arange(seq_len, device = device, dtype = dtype) + offset) / self.interpolate_factor
 
-    def rotate_queries_or_keys(self, t, seq_dim = -2, offset = 0, freq_seq_len = None):
+    def rotate_queries_or_keys(self, t, seq_dim = None, offset = 0, freq_seq_len = None):
+        seq_dim = default(seq_dim, self.default_seq_dim)
+
         assert not self.use_xpos, 'you must use `.rotate_queries_and_keys` method instead and pass in both queries and keys, for length extrapolatable rotary embeddings'
 
         device, dtype, seq_len = t.device, t.dtype, t.shape[seq_dim]
@@ -124,23 +135,37 @@ class RotaryEmbedding(nn.Module):
             seq_len = freq_seq_len
 
         freqs = self.forward(lambda: self.get_seq_pos(seq_len, device = device, dtype = dtype, offset = offset), cache_key = f'freqs:{seq_len}|offset:{offset}')
-        return apply_rotary_emb(freqs, t)
 
-    def rotate_queries_with_cached_keys(self, q, k, seq_dim = -2):
+        if self.seq_before_head_dim:
+            freqs = rearrange(freqs, 'n d -> n 1 d')
+
+        return apply_rotary_emb(freqs, t, seq_dim = seq_dim)
+
+    def rotate_queries_with_cached_keys(self, q, k, seq_dim = None, offset = 0):
+        seq_dim = default(seq_dim, self.default_seq_dim)
+
         q_len, k_len = q.shape[seq_dim], k.shape[seq_dim]
         assert q_len <= k_len
         q = self.rotate_queries_or_keys(q, seq_dim = seq_dim, freq_seq_len = k_len)
         k = self.rotate_queries_or_keys(k, seq_dim = seq_dim)
         return q, k
 
-    def rotate_queries_and_keys(self, q, k, seq_dim = -2):
+    def rotate_queries_and_keys(self, q, k, seq_dim = None):
+        seq_dim = default(seq_dim, self.default_seq_dim)
+
         assert self.use_xpos
         device, dtype, seq_len = q.device, q.dtype, q.shape[seq_dim]
+
         seq = self.get_seq_pos(seq_len, dtype = dtype, device = device)
         freqs = self.forward(lambda: seq, cache_key = f'freqs:{seq_len}')
         scale = self.get_scale(lambda: seq, cache_key = f'scale:{seq_len}').to(dtype)
-        rotated_q = apply_rotary_emb(freqs, q, scale = scale)
-        rotated_k = apply_rotary_emb(freqs, k, scale = scale ** -1)
+
+        if self.seq_before_head_dim:
+            freqs = rearrange(freqs, 'n d -> n 1 d')
+            scale = rearrange(scale, 'n d -> n 1 d')
+
+        rotated_q = apply_rotary_emb(freqs, q, scale = scale, seq_dim = seq_dim)
+        rotated_k = apply_rotary_emb(freqs, k, scale = scale ** -1, seq_dim = seq_dim)
         return rotated_q, rotated_k
 
     def get_scale(self, t, cache_key = None):
