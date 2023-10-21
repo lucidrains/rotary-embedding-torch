@@ -146,9 +146,13 @@ class RotaryEmbedding(nn.Module):
 
         q_len, k_len = q.shape[seq_dim], k.shape[seq_dim]
         assert q_len <= k_len
-        q = self.rotate_queries_or_keys(q, seq_dim = seq_dim, freq_seq_len = k_len)
-        k = self.rotate_queries_or_keys(k, seq_dim = seq_dim)
-        return q, k
+        rotated_q = self.rotate_queries_or_keys(q, seq_dim = seq_dim, freq_seq_len = k_len)
+        rotated_k = self.rotate_queries_or_keys(k, seq_dim = seq_dim)
+
+        rotated_q = rotated_q.type(q.dtype)
+        rotated_k = rotated_k.type(k.dtype)
+
+        return rotated_q, rotated_k
 
     def rotate_queries_and_keys(self, q, k, seq_dim = None):
         seq_dim = default(seq_dim, self.default_seq_dim)
@@ -166,6 +170,10 @@ class RotaryEmbedding(nn.Module):
 
         rotated_q = apply_rotary_emb(freqs, q, scale = scale, seq_dim = seq_dim)
         rotated_k = apply_rotary_emb(freqs, k, scale = scale ** -1, seq_dim = seq_dim)
+
+        rotated_q = rotated_q.type(q.dtype)
+        rotated_k = rotated_k.type(k.dtype)
+
         return rotated_q, rotated_k
 
     def get_scale(self, t, cache_key = None):
