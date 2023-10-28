@@ -99,6 +99,8 @@ class RotaryEmbedding(nn.Module):
         self.cache_scale = dict()
         self.freqs = nn.Parameter(freqs, requires_grad = learned_freq)
 
+        self.learned_freq = learned_freq
+
         # default sequence dimension
 
         self.seq_before_head_dim = seq_before_head_dim
@@ -197,7 +199,9 @@ class RotaryEmbedding(nn.Module):
         return scale
 
     def forward(self, t, cache_key = None):
-        if exists(cache_key) and cache_key in self.cache:
+        should_cache = not self.learned_freq and exists(cache_key)
+
+        if should_cache and cache_key in self.cache:
             return self.cache[cache_key]
 
         if callable(t):
@@ -208,7 +212,7 @@ class RotaryEmbedding(nn.Module):
         freqs = einsum('..., f -> ... f', t.type(freqs.dtype), freqs)
         freqs = repeat(freqs, '... n -> ... (n r)', r = 2)
 
-        if exists(cache_key):
+        if should_cache:
             self.cache[cache_key] = freqs
 
         return freqs
