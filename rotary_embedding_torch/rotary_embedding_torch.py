@@ -1,7 +1,7 @@
 from math import pi, log
 
 import torch
-from torch import nn, einsum
+from torch import nn, einsum, broadcast_tensors
 
 from einops import rearrange, repeat
 
@@ -14,22 +14,8 @@ def default(val, d):
     return val if exists(val) else d
 
 def broadcat(tensors, dim = -1):
-    num_tensors = len(tensors)
-    shape_lens = set(list(map(lambda t: len(t.shape), tensors)))
-    assert len(shape_lens) == 1, 'tensors must all have the same number of dimensions'
-    shape_len = list(shape_lens)[0]
-
-    dim = (dim + shape_len) if dim < 0 else dim
-    dims = list(zip(*map(lambda t: list(t.shape), tensors)))
-
-    expandable_dims = [(i, val) for i, val in enumerate(dims) if i != dim]
-    assert all([*map(lambda t: len(set(t[1])) <= 2, expandable_dims)]), 'invalid dimensions for broadcastable concatentation'
-    max_dims = list(map(lambda t: (t[0], max(t[1])), expandable_dims))
-    expanded_dims = list(map(lambda t: (t[0], (t[1],) * num_tensors), max_dims))
-    expanded_dims.insert(dim, (dim, dims[dim]))
-    expandable_shapes = list(zip(*map(lambda t: t[1], expanded_dims)))
-    tensors = list(map(lambda t: t[0].expand(*t[1]), zip(tensors, expandable_shapes)))
-    return torch.cat(tensors, dim = dim)
+    broadcasted_tensors = broadcast_tensors(*tensors)
+    return torch.cat(broadcasted_tensors, dim = dim)
 
 # rotary embedding helper functions
 
