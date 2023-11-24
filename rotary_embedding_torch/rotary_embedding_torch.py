@@ -1,6 +1,7 @@
 from math import pi, log
 
 import torch
+from torch.cuda.amp import autocast
 from torch import nn, einsum, broadcast_tensors
 
 from einops import rearrange, repeat
@@ -25,6 +26,7 @@ def rotate_half(x):
     x = torch.stack((-x2, x1), dim = -1)
     return rearrange(x, '... d r -> ... (d r)')
 
+@autocast(enabled = False)
 def apply_rotary_emb(freqs, t, start_index = 0, scale = 1., seq_dim = -2):
     rot_dim, seq_len = freqs.shape[-1], t.shape[seq_dim]
     freqs = freqs[-seq_len:].to(t)
@@ -184,6 +186,7 @@ class RotaryEmbedding(nn.Module):
 
         return scale
 
+    @autocast(enabled = False)
     def forward(self, t, cache_key = None):
         should_cache = not self.learned_freq and exists(cache_key)
 
