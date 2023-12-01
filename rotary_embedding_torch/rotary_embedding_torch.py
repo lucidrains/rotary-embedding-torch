@@ -18,10 +18,6 @@ def exists(val):
 def default(val, d):
     return val if exists(val) else d
 
-def broadcat(tensors, dim = -1):
-    broadcasted_tensors = broadcast_tensors(*tensors)
-    return torch.cat(broadcasted_tensors, dim = dim)
-
 # rotary embedding helper functions
 
 def rotate_half(x):
@@ -225,8 +221,8 @@ class RotaryEmbedding(Module):
             new_axis_slice = (Ellipsis, *all_axis, Colon)
             all_freqs.append(freqs[new_axis_slice])
 
-        freqs = broadcat(all_freqs, dim = -1)
-        return freqs
+        all_freqs = broadcast_tensors(*all_freqs)
+        return torch.cat(all_freqs, dim = -1)
 
     @autocast(enabled = False)
     def forward(self, t, cache_key = None):
