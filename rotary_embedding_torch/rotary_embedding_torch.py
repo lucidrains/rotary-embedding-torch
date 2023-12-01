@@ -1,10 +1,14 @@
 from math import pi, log
 
 import torch
+from torch.nn import Module, ModuleList
 from torch.cuda.amp import autocast
-from torch import nn, einsum, broadcast_tensors
+from torch import nn, einsum, broadcast_tensors, Tensor
 
 from einops import rearrange, repeat
+
+from beartype import beartype
+from beartype.typing import Literal, Union, Optional
 
 # helper functions
 
@@ -28,11 +32,15 @@ def rotate_half(x):
 
 @autocast(enabled = False)
 def apply_rotary_emb(freqs, t, start_index = 0, scale = 1., seq_dim = -2):
-    rot_dim, seq_len = freqs.shape[-1], t.shape[seq_dim]
-    freqs = freqs[-seq_len:].to(t)
+    if t.ndim == 3:
+        seq_len = t.shape[seq_dim]
+        freqs = freqs[-seq_len:].to(t)
 
+    rot_dim = freqs.shape[-1]
     end_index = start_index + rot_dim
+
     assert rot_dim <= t.shape[-1], f'feature dimension {t.shape[-1]} is not of sufficient size to rotate in all the positions {rot_dim}'
+
     t_left, t, t_right = t[..., :start_index], t[..., start_index:end_index], t[..., end_index:]
     t = (t * freqs.cos() * scale) + (rotate_half(t) * freqs.sin() * scale)
     return torch.cat((t_left, t, t_right), dim = -1)
@@ -49,12 +57,17 @@ def apply_learned_rotations(rotations, t, start_index = 0, freq_ranges = None):
 
 # classes
 
-class RotaryEmbedding(nn.Module):
+class RotaryEmbedding(Module):
+    @beartype
     def __init__(
         self,
         dim,
-        custom_freqs = None,
-        freqs_for = 'lang',
+        custom_freqs: Optional[Tensor] = None,
+        freqs_for: Union[
+            Literal['lang'],
+            Literal['pixel'],
+            Literal['constant']
+        ] = 'lang',
         theta = 10000,
         max_freq = 10,
         num_freqs = 1,
@@ -72,6 +85,8 @@ class RotaryEmbedding(nn.Module):
 
         theta *= theta_rescale_factor ** (dim / (dim - 2))
 
+        self.freqs_for = freqs_for
+
         if exists(custom_freqs):
             freqs = custom_freqs
         elif freqs_for == 'lang':
@@ -80,14 +95,16 @@ class RotaryEmbedding(nn.Module):
             freqs = torch.linspace(1., max_freq / 2, dim // 2) * pi
         elif freqs_for == 'constant':
             freqs = torch.ones(num_freqs).float()
-        else:
-            raise ValueError(f'unknown modality {freqs_for}')
 
         self.cache = dict()
         self.cache_scale = dict()
         self.freqs = nn.Parameter(freqs, requires_grad = learned_freq)
 
         self.learned_freq = learned_freq
+
+        # dummy for device
+
+        self.register_buffer('dummy', torch.tensor(0), persistent = False)
 
         # default sequence dimension
 
@@ -109,6 +126,10 @@ class RotaryEmbedding(nn.Module):
         scale = (torch.arange(0, dim, 2) + 0.4 * dim) / (1.4 * dim)
         self.scale_base = xpos_scale_base
         self.register_buffer('scale', scale)
+
+    @property
+    def device(self):
+        return self.dummy.device
 
     def get_seq_pos(self, seq_len, device, dtype, offset = 0):
         return (torch.arange(seq_len, device = device, dtype = dtype) + offset) / self.interpolate_factor
@@ -185,6 +206,27 @@ class RotaryEmbedding(nn.Module):
             self.cache[cache_key] = scale
 
         return scale
+
+    def get_axial_freqs(self, *dims):
+        Colon = slice(None)
+        all_freqs = []
+
+        for ind, dim in enumerate(dims):
+            if self.freqs_for == 'pixel':
+                pos = torch.linspace(-1, 1, steps = dim, device = self.device)
+            else:
+                pos = torch.arange(dim, device = self.device)
+
+            freqs = self.forward(pos, cache_key = dim)
+
+            all_axis = [None] * len(dims)
+            all_axis[ind] = Colon
+
+            new_axis_slice = (Ellipsis, *all_axis, Colon)
+            all_freqs.append(freqs[new_axis_slice])
+
+        freqs = broadcat(all_freqs, dim = -1)
+        return freqs
 
     @autocast(enabled = False)
     def forward(self, t, cache_key = None):

@@ -39,33 +39,32 @@ If you do all the steps above correctly, you should see a dramatic improvement d
 
 ## Axial Rotary Embeddings
 
-For easy use of 2d axial relative positional embedding, ie. vision transformers
+For easy use of n-dimensional axial relative positional embedding, ie. video transformers
 
 ```python
 import torch
-from rotary_embedding_torch import apply_rotary_emb, RotaryEmbedding, broadcat
+
+from rotary_embedding_torch import (
+    RotaryEmbedding,
+    apply_rotary_emb
+)
 
 pos_emb = RotaryEmbedding(
-    dim = 32,
+    dim = 16,
     freqs_for = 'pixel',
     max_freq = 256
 )
 
 # queries and keys for frequencies to be rotated into
+# say for a video with 8 frames, and rectangular image (feature dimension comes last)
 
-q = torch.randn(1, 256, 256, 64)
-k = torch.randn(1, 256, 256, 64)
+q = torch.randn(1, 8, 64, 32, 64)
+k = torch.randn(1, 8, 64, 32, 64)
 
-# get frequencies for each axial
-# -1 to 1 has been shown to be a good choice for images and audio
+# get axial frequencies - (8, 64, 32, 16 * 3 = 48)
+# will automatically do partial rotary
 
-freqs_h = pos_emb(torch.linspace(-1, 1, steps = 256), cache_key = 256)
-freqs_w = pos_emb(torch.linspace(-1, 1, steps = 256), cache_key = 256)
-
-# concat the frequencies along each axial
-# broadcat function makes this easy without a bunch of expands
-
-freqs = broadcat((freqs_h[:, None, :], freqs_w[None, :, :]), dim = -1)
+freqs = pos_emb.get_axial_freqs(8, 64, 32)
 
 # rotate in frequencies
 
