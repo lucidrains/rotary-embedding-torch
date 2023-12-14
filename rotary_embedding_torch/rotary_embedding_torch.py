@@ -239,11 +239,10 @@ class RotaryEmbedding(Module):
         return torch.cat(all_freqs, dim = -1)
 
     @autocast(enabled = False)
-    @beartype
     def forward(
         self,
         t: Tensor,
-        seq_len: Optional[int] = None,
+        seq_len = None,
         offset = 0
     ):
         should_cache = (
