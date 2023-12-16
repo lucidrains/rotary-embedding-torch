@@ -18,6 +18,12 @@ def exists(val):
 def default(val, d):
     return val if exists(val) else d
 
+# broadcat, as tortoise-tts was using it
+
+def broadcat(tensors, dim = -1):
+    broadcasted_tensors = broadcast_tensors(*tensors)
+    return torch.cat(broadcasted_tensors, dim = dim)
+
 # rotary embedding helper functions
 
 def rotate_half(x):
