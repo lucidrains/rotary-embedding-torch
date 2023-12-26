@@ -78,7 +78,8 @@ class RotaryEmbedding(Module):
         xpos_scale_base = 512,
         interpolate_factor = 1.,
         theta_rescale_factor = 1.,
-        seq_before_head_dim = False
+        seq_before_head_dim = False,
+        cache_if_possible = True
     ):
         super().__init__()
         # proposed by reddit user bloc97, to rescale rotary embeddings to longer sequence length without fine-tuning
@@ -97,6 +98,8 @@ class RotaryEmbedding(Module):
             freqs = torch.linspace(1., max_freq / 2, dim // 2) * pi
         elif freqs_for == 'constant':
             freqs = torch.ones(num_freqs).float()
+
+        self.cache_if_possible = cache_if_possible
 
         self.tmp_store('cached_freqs', None)
         self.tmp_store('cached_scales', None)
@@ -203,7 +206,10 @@ class RotaryEmbedding(Module):
     ):
         assert self.use_xpos
 
-        should_cache = exists(seq_len)
+        should_cache = (
+            self.cache_if_possible and
+            exists(seq_len)
+        )
 
         if (
             should_cache and \
@@ -252,6 +258,7 @@ class RotaryEmbedding(Module):
         offset = 0
     ):
         should_cache = (
+            self.cache_if_possible and \
             not self.learned_freq and \
             exists(seq_len) and \
             self.freqs_for != 'pixel'
@@ -262,7 +269,7 @@ class RotaryEmbedding(Module):
             exists(self.cached_freqs) and \
             (offset + seq_len) <= self.cached_freqs.shape[0]
         ):
-            return self.cached_freqs[offset:(offset + seq_len)]
+            return self.cached_freqs[offset:(offset + seq_len)].detach()
 
         freqs = self.freqs
 
@@ -270,6 +277,6 @@ class RotaryEmbedding(Module):
         freqs = repeat(freqs, '... n -> ... (n r)', r = 2)
 
         if should_cache:
-            self.tmp_store('cached_freqs', freqs)
+            self.tmp_store('cached_freqs', freqs.detach())
 
         return freqs
