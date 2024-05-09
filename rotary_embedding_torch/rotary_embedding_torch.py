@@ -133,6 +133,10 @@ class RotaryEmbedding(Module):
         self.scale_base = xpos_scale_base
         self.tmp_store('scale', scale)
 
+        # add apply_rotary_emb as static method
+
+        self.apply_rotary_emb = staticmethod(apply_rotary_emb)
+
     @property
     def device(self):
         return self.dummy.device
@@ -143,16 +147,12 @@ class RotaryEmbedding(Module):
     def get_seq_pos(self, seq_len, device, dtype, offset = 0):
         return (torch.arange(seq_len, device = device, dtype = dtype) + offset) / self.interpolate_factor
 
-    def rotate_queries_or_keys(self, t, seq_dim = None, offset = 0, freq_seq_len = None):
+    def rotate_queries_or_keys(self, t, seq_dim = None, offset = 0):
         seq_dim = default(seq_dim, self.default_seq_dim)
 
         assert not self.use_xpos, 'you must use `.rotate_queries_and_keys` method instead and pass in both queries and keys, for length extrapolatable rotary embeddings'
 
         device, dtype, seq_len = t.device, t.dtype, t.shape[seq_dim]
-
-        if exists(freq_seq_len):
-            assert freq_seq_len >= seq_len
-            seq_len = freq_seq_len
 
         freqs = self.forward(self.get_seq_pos(seq_len, device = device, dtype = dtype, offset = offset), seq_len = seq_len, offset = offset)
 
@@ -166,7 +166,8 @@ class RotaryEmbedding(Module):
 
         q_len, k_len = q.shape[seq_dim], k.shape[seq_dim]
         assert q_len <= k_len
-        rotated_q = self.rotate_queries_or_keys(q, seq_dim = seq_dim, freq_seq_len = k_len)
+
+        rotated_q = self.rotate_queries_or_keys(q, seq_dim = seq_dim, offset = k_len - q_len)
         rotated_k = self.rotate_queries_or_keys(k, seq_dim = seq_dim)
 
         rotated_q = rotated_q.type(q.dtype)
