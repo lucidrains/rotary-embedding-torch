@@ -37,6 +37,25 @@ k = rotary_emb.rotate_queries_or_keys(k)
 
 If you do all the steps above correctly, you should see a dramatic improvement during training
 
+## Inference Key-Value Cache
+
+When dealing with key / value caches at inference, the query position needs to be offset with the `key_value_seq_length - query_seq_length`
+
+To make this easy, use the `rotate_queries_with_cached_keys` method
+
+```python
+q = torch.randn(1, 8, 1, 64)     # only one query at a time
+k = torch.randn(1, 8, 1024, 64)  # key / values with cache concatted
+
+q, k = rotary_emb.rotate_queries_with_cached_keys(q, k)
+```
+
+You can also do this manually like so
+
+```python
+q = rotary_emb.rotate_queries_or_keys(q, offset = k.shape[-2] - q.shape[-2])
+```
+
 ## Axial Rotary Embeddings
 
 For easy use of n-dimensional axial relative positional embedding, ie. video transformers
