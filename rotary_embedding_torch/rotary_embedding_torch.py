@@ -34,9 +34,11 @@ def rotate_half(x):
 
 @autocast(enabled = False)
 def apply_rotary_emb(freqs, t, start_index = 0, scale = 1., seq_dim = -2):
+    dtype = t.dtype
+
     if t.ndim == 3:
         seq_len = t.shape[seq_dim]
-        freqs = freqs[-seq_len:].to(t)
+        freqs = freqs[-seq_len:]
 
     rot_dim = freqs.shape[-1]
     end_index = start_index + rot_dim
@@ -45,7 +47,9 @@ def apply_rotary_emb(freqs, t, start_index = 0, scale = 1., seq_dim = -2):
 
     t_left, t, t_right = t[..., :start_index], t[..., start_index:end_index], t[..., end_index:]
     t = (t * freqs.cos() * scale) + (rotate_half(t) * freqs.sin() * scale)
-    return torch.cat((t_left, t, t_right), dim = -1)
+    out = torch.cat((t_left, t, t_right), dim = -1)
+
+    return out.type(dtype)
 
 # learned rotation helpers
 
