@@ -1,3 +1,4 @@
+from __future__ import annotations
 from math import pi, log
 
 import torch
@@ -8,7 +9,7 @@ from torch import nn, einsum, broadcast_tensors, Tensor
 from einops import rearrange, repeat
 
 from beartype import beartype
-from beartype.typing import Literal, Union, Optional
+from beartype.typing import Literal
 
 # helper functions
 
@@ -68,12 +69,8 @@ class RotaryEmbedding(Module):
     def __init__(
         self,
         dim,
-        custom_freqs: Optional[Tensor] = None,
-        freqs_for: Union[
-            Literal['lang'],
-            Literal['pixel'],
-            Literal['constant']
-        ] = 'lang',
+        custom_freqs: Tensor | None = None,
+        freqs_for:  Literal['lang', 'pixel', 'constant'] = 'lang',
         theta = 10000,
         max_freq = 10,
         num_freqs = 1,
@@ -151,28 +148,38 @@ class RotaryEmbedding(Module):
     def get_seq_pos(self, seq_len, device, dtype, offset = 0):
         return (torch.arange(seq_len, device = device, dtype = dtype) + offset) / self.interpolate_factor
 
-    def rotate_queries_or_keys(self, t, seq_dim = None, offset = 0):
+    def rotate_queries_or_keys(self, t, seq_dim = None, offset = 0, scale = None):
         seq_dim = default(seq_dim, self.default_seq_dim)
 
-        assert not self.use_xpos, 'you must use `.rotate_queries_and_keys` method instead and pass in both queries and keys, for length extrapolatable rotary embeddings'
+        assert not self.use_xpos or exists(scale), 'you must use `.rotate_queries_and_keys` method instead and pass in both queries and keys, for length extrapolatable rotary embeddings'
 
         device, dtype, seq_len = t.device, t.dtype, t.shape[seq_dim]
 
-        freqs = self.forward(self.get_seq_pos(seq_len, device = device, dtype = dtype, offset = offset), seq_len = seq_len, offset = offset)
+        seq = self.get_seq_pos(seq_len, device = device, dtype = dtype, offset = offset)
+
+        freqs = self.forward(seq, seq_len = seq_len, offset = offset)
 
         if seq_dim == -3:
             freqs = rearrange(freqs, 'n d -> n 1 d')
 
-        return apply_rotary_emb(freqs, t, seq_dim = seq_dim)
+        return apply_rotary_emb(freqs, t, scale = default(scale, 1.), seq_dim = seq_dim)
 
     def rotate_queries_with_cached_keys(self, q, k, seq_dim = None, offset = 0):
-        seq_dim = default(seq_dim, self.default_seq_dim)
+        dtype, device, seq_dim = q.dtype, q.device, default(seq_dim, self.default_seq_dim)
 
         q_len, k_len = q.shape[seq_dim], k.shape[seq_dim]
         assert q_len <= k_len
 
-        rotated_q = self.rotate_queries_or_keys(q, seq_dim = seq_dim, offset = k_len - q_len + offset)
-        rotated_k = self.rotate_queries_or_keys(k, seq_dim = seq_dim, offset = offset)
+        q_scale = k_scale = 1.
+
+        if self.use_xpos:
+            seq = self.get_seq_pos(k_len, dtype = dtype, device = device)
+
+            q_scale = self.get_scale(seq[-q_len:]).type(dtype)
+            k_scale = self.get_scale(seq).type(dtype)
+
+        rotated_q = self.rotate_queries_or_keys(q, seq_dim = seq_dim, scale = q_scale, offset = k_len - q_len + offset)
+        rotated_k = self.rotate_queries_or_keys(k, seq_dim = seq_dim, scale = k_scale ** -1)
 
         rotated_q = rotated_q.type(q.dtype)
         rotated_k = rotated_k.type(k.dtype)
@@ -206,7 +213,7 @@ class RotaryEmbedding(Module):
     def get_scale(
         self,
         t: Tensor,
-        seq_len: Optional[int] = None,
+        seq_len: int | None = None,
         offset = 0
     ):
         assert self.use_xpos
