@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
   name = 'rotary-embedding-torch',
   packages = find_packages(),
-  version = '0.6.3',
+  version = '0.6.4',
   license='MIT',
   description = 'Rotary Embedding - Pytorch',
   long_description_content_type = 'text/markdown',
@@ -16,7 +16,6 @@ setup(
     'positional embedding'    
   ],
   install_requires=[
-    'beartype',
     'einops>=0.7',
     'torch>=2.0'
   ],

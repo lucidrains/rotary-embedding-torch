@@ -8,8 +8,7 @@ from torch import nn, einsum, broadcast_tensors, Tensor
 
 from einops import rearrange, repeat
 
-from beartype import beartype
-from beartype.typing import Literal
+from typing import Literal
 
 # helper functions
 
@@ -65,7 +64,6 @@ def apply_learned_rotations(rotations, t, start_index = 0, freq_ranges = None):
 # classes
 
 class RotaryEmbedding(Module):
-    @beartype
     def __init__(
         self,
         dim,
@@ -209,7 +207,6 @@ class RotaryEmbedding(Module):
 
         return rotated_q, rotated_k
 
-    @beartype
     def get_scale(
         self,
         t: Tensor,
