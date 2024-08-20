@@ -45,9 +45,15 @@ def apply_rotary_emb(freqs, t, start_index = 0, scale = 1., seq_dim = -2):
 
     assert rot_dim <= t.shape[-1], f'feature dimension {t.shape[-1]} is not of sufficient size to rotate in all the positions {rot_dim}'
 
-    t_left, t, t_right = t[..., :start_index], t[..., start_index:end_index], t[..., end_index:]
-    t = (t * freqs.cos() * scale) + (rotate_half(t) * freqs.sin() * scale)
-    out = torch.cat((t_left, t, t_right), dim = -1)
+    # Split t into three parts: left, middle (to be transformed), and right
+    t_left = t[..., :start_index]
+    t_middle = t[..., start_index:end_index]
+    t_right = t[..., end_index:]
+
+    # Apply rotary embeddings without modifying t in place    
+    t_transformed = (t_middle * freqs.cos() * scale) + (rotate_half(t_middle) * freqs.sin() * scale)
+        
+    out = torch.cat((t_left, t_transformed, t_right), dim=-1)
 
     return out.type(dtype)
 
