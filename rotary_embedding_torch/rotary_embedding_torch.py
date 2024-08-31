@@ -250,9 +250,9 @@ class RotaryEmbedding(Module):
 
         for ind, dim in enumerate(dims):
             if self.freqs_for == 'pixel':
-                pos = torch.linspace(-1, 1, steps = dim, device = self.device)
+                pos = torch.linspace(-1, 1, steps = dim, device = self.device) / self.interpolate_factor
             else:
-                pos = torch.arange(dim, device = self.device)
+                pos = torch.arange(dim, device = self.device) / self.interpolate_factor
 
             freqs = self.forward(pos, seq_len = dim)
 
