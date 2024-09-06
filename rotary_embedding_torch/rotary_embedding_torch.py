@@ -237,7 +237,7 @@ class RotaryEmbedding(Module):
         if self.use_xpos:
             power = (t - len(t) // 2) / self.scale_base
             scale = self.scale ** rearrange(power, 'n -> n 1')
-            scale = torch.cat((scale, scale), dim = -1)
+            scale = repeat(scale, 'n d -> n (d r)', r = 2)
 
         if should_cache:
             self.tmp_store('cached_scales', scale)
