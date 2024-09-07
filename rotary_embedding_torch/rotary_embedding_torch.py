@@ -84,7 +84,8 @@ class RotaryEmbedding(Module):
         interpolate_factor = 1.,
         theta_rescale_factor = 1.,
         seq_before_head_dim = False,
-        cache_if_possible = True
+        cache_if_possible = True,
+        cache_max_seq_len = 8192
     ):
         super().__init__()
         # proposed by reddit user bloc97, to rescale rotary embeddings to longer sequence length without fine-tuning
@@ -105,9 +106,10 @@ class RotaryEmbedding(Module):
             freqs = torch.ones(num_freqs).float()
 
         self.cache_if_possible = cache_if_possible
+        self.cache_max_seq_len = cache_max_seq_len
 
-        self.tmp_store('cached_freqs', None)
-        self.tmp_store('cached_scales', None)
+        self.register_buffer('cached_freqs', torch.zeros(cache_max_seq_len, dim), persistent = False)
+        self.register_buffer('cached_freqs_seq_len', torch.tensor(0), persistent = False)
 
         self.freqs = nn.Parameter(freqs, requires_grad = learned_freq)
 
@@ -115,7 +117,7 @@ class RotaryEmbedding(Module):
 
         # dummy for device
 
-        self.tmp_store('dummy', torch.tensor(0))
+        self.register_buffer('dummy', torch.tensor(0), persistent = False)
 
         # default sequence dimension
 
@@ -130,13 +132,16 @@ class RotaryEmbedding(Module):
         # xpos
 
         self.use_xpos = use_xpos
+
         if not use_xpos:
-            self.tmp_store('scale', None)
             return
 
         scale = (torch.arange(0, dim, 2) + 0.4 * dim) / (1.4 * dim)
         self.scale_base = xpos_scale_base
-        self.tmp_store('scale', scale)
+
+        self.register_buffer('scale', scale, persistent = False)
+        self.register_buffer('cached_scales', torch.zeros(cache_max_seq_len, dim), persistent = False)
+        self.register_buffer('cached_scales_seq_len', torch.tensor(0), persistent = False)
 
         # add apply_rotary_emb as static method
 
@@ -145,9 +150,6 @@ class RotaryEmbedding(Module):
     @property
     def device(self):
         return self.dummy.device
-
-    def tmp_store(self, key, value):
-        self.register_buffer(key, value, persistent = False)
 
     def get_seq_pos(self, seq_len, device, dtype, offset = 0):
         return (torch.arange(seq_len, device = device, dtype = dtype) + offset) / self.interpolate_factor
@@ -223,13 +225,14 @@ class RotaryEmbedding(Module):
 
         should_cache = (
             self.cache_if_possible and
-            exists(seq_len)
+            exists(seq_len) and
+            (offset + seq_len) <= self.cache_max_seq_len
         )
 
         if (
             should_cache and \
             exists(self.cached_scales) and \
-            (seq_len + offset) <= self.cached_scales.shape[0]
+            (seq_len + offset) <= self.cached_scales_seq_len.item()
         ):
             return self.cached_scales[offset:(offset + seq_len)]
 
@@ -240,7 +243,8 @@ class RotaryEmbedding(Module):
             scale = repeat(scale, 'n d -> n (d r)', r = 2)
 
         if should_cache:
-            self.tmp_store('cached_scales', scale)
+            self.cached_scales[:seq_len] = scale.detach()
+            self.cached_scales_seq_len.copy_(seq_len)
 
         return scale
 
@@ -273,16 +277,17 @@ class RotaryEmbedding(Module):
         offset = 0
     ):
         should_cache = (
-            self.cache_if_possible and \
-            not self.learned_freq and \
-            exists(seq_len) and \
-            self.freqs_for != 'pixel'
+            self.cache_if_possible and
+            not self.learned_freq and
+            exists(seq_len) and
+            self.freqs_for != 'pixel' and
+            (offset + seq_len) <= self.cache_max_seq_len
         )
 
         if (
             should_cache and \
             exists(self.cached_freqs) and \
-            (offset + seq_len) <= self.cached_freqs.shape[0]
+            (offset + seq_len) <= self.cached_freqs_seq_len.item()
         ):
             return self.cached_freqs[offset:(offset + seq_len)].detach()
 
@@ -292,6 +297,7 @@ class RotaryEmbedding(Module):
         freqs = repeat(freqs, '... n -> ... (n r)', r = 2)
 
         if should_cache:
-            self.tmp_store('cached_freqs', freqs.detach())
+            self.cached_freqs[:seq_len] = freqs.detach()
+            self.cached_freqs_seq_len.copy_(seq_len)
 
         return freqs
