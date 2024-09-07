@@ -242,7 +242,7 @@ class RotaryEmbedding(Module):
             scale = self.scale ** rearrange(power, 'n -> n 1')
             scale = repeat(scale, 'n d -> n (d r)', r = 2)
 
-        if should_cache:
+        if should_cache and offset == 0:
             self.cached_scales[:seq_len] = scale.detach()
             self.cached_scales_seq_len.copy_(seq_len)
 
@@ -296,7 +296,7 @@ class RotaryEmbedding(Module):
         freqs = einsum('..., f -> ... f', t.type(freqs.dtype), freqs)
         freqs = repeat(freqs, '... n -> ... (n r)', r = 2)
 
-        if should_cache:
+        if should_cache and offset == 0:
             self.cached_freqs[:seq_len] = freqs.detach()
             self.cached_freqs_seq_len.copy_(seq_len)
 
