@@ -2,8 +2,8 @@ from __future__ import annotations
 from math import pi, log
 
 import torch
-from torch.nn import Module, ModuleList
 from torch.amp import autocast
+from torch.nn import Module, ModuleList
 from torch import nn, einsum, broadcast_tensors, Tensor
 
 from einops import rearrange, repeat
@@ -24,6 +24,12 @@ def broadcat(tensors, dim = -1):
     broadcasted_tensors = broadcast_tensors(*tensors)
     return torch.cat(broadcasted_tensors, dim = dim)
 
+def slice_at_dim(t, dim_slice: slice, *, dim):
+    dim += (t.ndim if dim < 0 else 0)
+    colons = [slice(None)] * t.ndim
+    colons[dim] = dim_slice
+    return t[tuple(colons)]
+
 # rotary embedding helper functions
 
 def rotate_half(x):
@@ -33,12 +39,20 @@ def rotate_half(x):
     return rearrange(x, '... d r -> ... (d r)')
 
 @autocast('cuda', enabled = False)
-def apply_rotary_emb(freqs, t, start_index = 0, scale = 1., seq_dim = -2):
+def apply_rotary_emb(
+    freqs,
+    t,
+    start_index = 0,
+    scale = 1.,
+    seq_dim = -2,
+    freqs_seq_dim = None
+):
     dtype = t.dtype
 
-    if t.ndim == 3:
+    if t.ndim == 3 or exists(freqs_seq_dim):
+        freqs_seq_dim = default(freqs_seq_dim, 0)
         seq_len = t.shape[seq_dim]
-        freqs = freqs[-seq_len:]
+        freqs = slice_at_dim(freqs, slice(-seq_len, None), dim = freqs_seq_dim)
 
     rot_dim = freqs.shape[-1]
     end_index = start_index + rot_dim
