@@ -49,8 +49,11 @@ def apply_rotary_emb(
 ):
     dtype = t.dtype
 
+    if not exists(freqs_seq_dim):
+        if freqs.ndim == 2 or t.ndim == 3:
+            freqs_seq_dim = 0
+
     if t.ndim == 3 or exists(freqs_seq_dim):
-        freqs_seq_dim = default(freqs_seq_dim, 0)
         seq_len = t.shape[seq_dim]
         freqs = slice_at_dim(freqs, slice(-seq_len, None), dim = freqs_seq_dim)
 
