@@ -126,7 +126,7 @@ class RotaryEmbedding(Module):
         self.cache_max_seq_len = cache_max_seq_len
 
         self.register_buffer('cached_freqs', torch.zeros(cache_max_seq_len, dim), persistent = False)
-        self.register_buffer('cached_freqs_seq_len', torch.tensor(0), persistent = False)
+        self.cached_freqs_seq_len = 0
 
         self.freqs = nn.Parameter(freqs, requires_grad = learned_freq)
 
@@ -158,7 +158,7 @@ class RotaryEmbedding(Module):
 
         self.register_buffer('scale', scale, persistent = False)
         self.register_buffer('cached_scales', torch.zeros(cache_max_seq_len, dim), persistent = False)
-        self.register_buffer('cached_scales_seq_len', torch.tensor(0), persistent = False)
+        self.cached_scales_seq_len = 0
 
         # add apply_rotary_emb as static method
 
@@ -249,7 +249,7 @@ class RotaryEmbedding(Module):
         if (
             should_cache and \
             exists(self.cached_scales) and \
-            (seq_len + offset) <= self.cached_scales_seq_len.item()
+            (seq_len + offset) <= self.cached_scales_seq_len
         ):
             return self.cached_scales[offset:(offset + seq_len)]
 
@@ -261,7 +261,7 @@ class RotaryEmbedding(Module):
 
         if should_cache and offset == 0:
             self.cached_scales[:seq_len] = scale.detach()
-            self.cached_scales_seq_len.copy_(seq_len)
+            self.cached_scales_seq_len = seq_len
 
         return scale
 
@@ -290,7 +290,7 @@ class RotaryEmbedding(Module):
     def forward(
         self,
         t: Tensor,
-        seq_len = None,
+        seq_len: int | None = None,
         offset = 0
     ):
         should_cache = (
@@ -304,7 +304,7 @@ class RotaryEmbedding(Module):
         if (
             should_cache and \
             exists(self.cached_freqs) and \
-            (offset + seq_len) <= self.cached_freqs_seq_len.item()
+            (offset + seq_len) <= self.cached_freqs_seq_len
         ):
             return self.cached_freqs[offset:(offset + seq_len)].detach()
 
@@ -315,6 +315,6 @@ class RotaryEmbedding(Module):
 
         if should_cache and offset == 0:
             self.cached_freqs[:seq_len] = freqs.detach()
-            self.cached_freqs_seq_len.copy_(seq_len)
+            self.cached_freqs_seq_len = seq_len
 
         return freqs
