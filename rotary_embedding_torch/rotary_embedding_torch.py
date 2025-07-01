@@ -4,7 +4,7 @@ from math import pi, log
 import torch
 from torch.amp import autocast
 from torch.nn import Module, ModuleList
-from torch import nn, einsum, broadcast_tensors, Tensor
+from torch import nn, einsum, broadcast_tensors, is_tensor, tensor, Tensor
 
 from einops import rearrange, repeat
 
@@ -265,15 +265,40 @@ class RotaryEmbedding(Module):
 
         return scale
 
-    def get_axial_freqs(self, *dims):
+    def get_axial_freqs(
+        self,
+        *dims,
+        offsets: (
+            tuple[int | float, ...] |
+            Tensor |
+            None
+        ) = None
+    ):
         Colon = slice(None)
         all_freqs = []
 
+        # handle offset
+
+        if exists(offsets):
+            if not is_tensor(offsets):
+                offsets = tensor(offsets)
+
+            assert len(offsets) == len(dims)
+
+        # get frequencies for each axis
+
         for ind, dim in enumerate(dims):
+
+            offset = 0
+            if exists(offsets):
+                offset = offsets[ind]
+
             if self.freqs_for == 'pixel':
                 pos = torch.linspace(-1, 1, steps = dim, device = self.device)
             else:
                 pos = torch.arange(dim, device = self.device)
+
+            pos = pos + offset
 
             freqs = self.forward(pos, seq_len = dim)
 
@@ -282,6 +307,8 @@ class RotaryEmbedding(Module):
 
             new_axis_slice = (Ellipsis, *all_axis, Colon)
             all_freqs.append(freqs[new_axis_slice])
+
+        # concat all freqs
 
         all_freqs = broadcast_tensors(*all_freqs)
         return torch.cat(all_freqs, dim = -1)
