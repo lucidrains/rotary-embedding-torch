@@ -168,7 +168,10 @@ class RotaryEmbedding(Module):
     def device(self):
         return self.dummy.device
 
-    def get_seq_pos(self, seq_len, device, dtype, offset = 0):
+    def get_seq_pos(self, seq_len, device = None, dtype = None, offset = 0):
+        device = default(device, self.device)
+        dtype = default(dtype, self.cached_freqs.device)
+
         return (torch.arange(seq_len, device = device, dtype = dtype) + offset) / self.interpolate_factor
 
     def rotate_queries_or_keys(self, t, seq_dim = None, offset = 0, scale = None):
