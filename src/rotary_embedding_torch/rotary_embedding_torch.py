@@ -9,6 +9,7 @@ from torch import Tensor, broadcast_tensors, einsum, is_tensor, nn, tensor
 from torch.amp import autocast
 from torch.nn import Module
 
+
 # helper functions
 def exists(val):
     return val is not None
@@ -19,12 +20,12 @@ def default(val, d):
 
 
 # broadcast, as tortoise-tts was using it
-def broadcast(tensors, dim=-1):
+def broadcast(tensors: list[Tensor], dim: int = -1) -> Tensor:
     broadcasted_tensors = broadcast_tensors(*tensors)
     return torch.cat(broadcasted_tensors, dim=dim)
 
 
-def slice_at_dim(t, dim_slice: slice, *, dim):
+def slice_at_dim(t: Tensor, dim_slice: slice, *, dim: int) -> Tensor:
     dim += t.ndim if dim < 0 else 0
     colons = [slice(None)] * t.ndim
     colons[dim] = dim_slice
@@ -32,7 +33,7 @@ def slice_at_dim(t, dim_slice: slice, *, dim):
 
 
 # rotary embedding helper functions
-def rotate_half(x: torch.Tensor) -> torch.Tensor:
+def rotate_half(x: Tensor) -> Tensor:
     x = rearrange(x, "... (d r) -> ... d r", r=2)
     x1, x2 = x.unbind(dim=-1)
     x = torch.stack((-x2, x1), dim=-1)
@@ -40,7 +41,14 @@ def rotate_half(x: torch.Tensor) -> torch.Tensor:
 
 
 @autocast("cuda", enabled=False)
-def apply_rotary_emb(freqs, t, start_index=0, scale=1.0, seq_dim=-2, freqs_seq_dim=None):
+def apply_rotary_emb(
+    freqs: Tensor,
+    t: Tensor,
+    start_index: int = 0,
+    scale: Tensor | float = 1.0,
+    seq_dim: int = -2,
+    freqs_seq_dim: int = None,
+) -> Tensor:
     dtype = t.dtype
 
     if not exists(freqs_seq_dim):
@@ -54,9 +62,9 @@ def apply_rotary_emb(freqs, t, start_index=0, scale=1.0, seq_dim=-2, freqs_seq_d
     rot_dim = freqs.shape[-1]
     end_index = start_index + rot_dim
 
-    assert rot_dim <= t.shape[-1], (
-        f"feature dimension {t.shape[-1]} is not of sufficient size to rotate in all the positions {rot_dim}"
-    )
+    if rot_dim > t.shape[-1]:
+        msg = f"feature dimension {t.shape[-1]} is not of sufficient size to rotate in all the positions {rot_dim}"
+        raise ValueError(msg)
 
     # Split t into three parts: left, middle (to be transformed), and right
     t_left = t[..., :start_index]
@@ -72,9 +80,7 @@ def apply_rotary_emb(freqs, t, start_index=0, scale=1.0, seq_dim=-2, freqs_seq_d
 
 
 # learned rotation helpers
-
-
-def apply_learned_rotations(rotations, t, start_index=0, freq_ranges=None):
+def apply_learned_rotations(rotations: Tensor, t: Tensor, start_index: int = 0, freq_ranges=None):
     if exists(freq_ranges):
         rotations = einsum("..., f -> ... f", rotations, freq_ranges)
         rotations = rearrange(rotations, "... r f -> ... (r f)")
@@ -84,26 +90,24 @@ def apply_learned_rotations(rotations, t, start_index=0, freq_ranges=None):
 
 
 # classes
-
-
 class RotaryEmbedding(Module):
     def __init__(
         self,
-        dim,
+        dim: int,
         custom_freqs: Tensor | None = None,
         freqs_for: Literal["lang", "pixel", "constant"] = "lang",
-        theta=10000,
-        max_freq=10,
-        num_freqs=1,
-        learned_freq=False,
-        use_xpos=False,
-        xpos_scale_base=512,
-        interpolate_factor=1.0,
-        theta_rescale_factor=1.0,
-        seq_before_head_dim=False,
-        cache_if_possible=True,
-        cache_max_seq_len=8192,
-    ):
+        theta: int | float = 10000,
+        max_freq: int | float = 10,
+        num_freqs: int = 1,
+        learned_freq: bool = False,
+        use_xpos: bool = False,
+        xpos_scale_base: int = 512,
+        interpolate_factor: float = 1.0,
+        theta_rescale_factor: float = 1.0,
+        seq_before_head_dim: bool = False,
+        cache_if_possible: bool = True,
+        cache_max_seq_len: int = 8192,
+    ) -> None:
         super().__init__()
         # proposed by reddit user bloc97, to rescale rotary embeddings to longer sequence length without fine-tuning
         # has some connection to NTK literature
@@ -143,12 +147,11 @@ class RotaryEmbedding(Module):
         self.default_seq_dim = -3 if seq_before_head_dim else -2
 
         # interpolation factors
-
-        assert interpolate_factor >= 1.0
+        if interpolate_factor < 1.0:
+            raise ValueError("interpolation factor must be at least 1.0")
         self.interpolate_factor = interpolate_factor
 
         # xpos
-
         self.use_xpos = use_xpos
 
         if not use_xpos:
@@ -169,17 +172,26 @@ class RotaryEmbedding(Module):
     def device(self):
         return self.dummy.device
 
-    def get_seq_pos(self, seq_len, device=None, dtype=None, offset=0):
+    def get_seq_pos(
+        self,
+        seq_len: int,
+        device: torch.device | str | None = None,
+        dtype: torch.dtype | None = None,
+        offset: int = 0,
+    ) -> Tensor:
         device = default(device, self.device)
         dtype = default(dtype, self.cached_freqs.dtype)
 
         return (torch.arange(seq_len, device=device, dtype=dtype) + offset) / self.interpolate_factor
 
-    def rotate_queries_or_keys(self, t, seq_dim=None, offset=0, scale=None):
+    def rotate_queries_or_keys(
+        self, t: Tensor, seq_dim: int | None = None, offset: int = 0, scale: Tensor | int | None = None
+    ) -> Tensor:
         seq_dim = default(seq_dim, self.default_seq_dim)
 
         assert not self.use_xpos or exists(scale), (
-            "you must use `.rotate_queries_and_keys` method instead and pass in both queries and keys, for length extrapolatable rotary embeddings"
+            "you must use `.rotate_queries_and_keys` method instead and pass in both queries "
+            "and keys, for length extrapolatable rotary embeddings"
         )
 
         device, dtype, seq_len = t.device, t.dtype, t.shape[seq_dim]
@@ -193,11 +205,16 @@ class RotaryEmbedding(Module):
 
         return apply_rotary_emb(freqs, t, scale=default(scale, 1.0), seq_dim=seq_dim)
 
-    def rotate_queries_with_cached_keys(self, q, k, seq_dim=None, offset=0):
+    def rotate_queries_with_cached_keys(
+        self, q: Tensor, k: Tensor, seq_dim: int | None = None, offset: int = 0
+    ) -> tuple[Tensor, Tensor]:
         dtype, device, seq_dim = q.dtype, q.device, default(seq_dim, self.default_seq_dim)
 
         q_len, k_len = q.shape[seq_dim], k.shape[seq_dim]
-        assert q_len <= k_len
+
+        if q_len > k_len:
+            msg = "query length must be less than or equal to key length"
+            raise ValueError(msg)
 
         q_scale = k_scale = 1.0
 
@@ -215,7 +232,7 @@ class RotaryEmbedding(Module):
 
         return rotated_q, rotated_k
 
-    def rotate_queries_and_keys(self, q, k, seq_dim=None):
+    def rotate_queries_and_keys(self, q: Tensor, k: Tensor, seq_dim: int | None = None) -> tuple[Tensor, Tensor]:
         seq_dim = default(seq_dim, self.default_seq_dim)
 
         assert self.use_xpos
@@ -238,7 +255,7 @@ class RotaryEmbedding(Module):
 
         return rotated_q, rotated_k
 
-    def get_scale(self, t: Tensor, seq_len: int | None = None, offset=0):
+    def get_scale(self, t: Tensor, seq_len: int | None = None, offset: int = 0) -> Tensor | float:
         assert self.use_xpos
 
         should_cache = self.cache_if_possible and exists(seq_len) and (offset + seq_len) <= self.cache_max_seq_len
@@ -258,7 +275,7 @@ class RotaryEmbedding(Module):
 
         return scale
 
-    def get_axial_freqs(self, *dims, offsets: (tuple[int | float, ...] | Tensor | None) = None):
+    def get_axial_freqs(self, *dims: int, offsets: tuple[int | float, ...] | Tensor | None = None) -> Tensor:
         Colon = slice(None)
         all_freqs = []
 
@@ -268,10 +285,11 @@ class RotaryEmbedding(Module):
             if not is_tensor(offsets):
                 offsets = tensor(offsets)
 
-            assert len(offsets) == len(dims)
+            if len(offsets) != len(dims):
+                msg = "offsets must be the same length as dims"
+                raise ValueError(msg)
 
         # get frequencies for each axis
-
         for ind, dim in enumerate(dims):
             offset = 0
             if exists(offsets):
@@ -298,7 +316,7 @@ class RotaryEmbedding(Module):
         return torch.cat(all_freqs, dim=-1)
 
     @autocast("cuda", enabled=False)
-    def forward(self, t: Tensor, seq_len: int | None = None, offset=0):
+    def forward(self, t: Tensor, seq_len: int | None = None, offset: int = 0) -> Tensor:
         should_cache = (
             self.cache_if_possible
             and not self.learned_freq
