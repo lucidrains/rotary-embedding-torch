@@ -8,8 +8,27 @@ My gut also tells me there is something <a href="https://www.nature.com/articles
 
 ## Install
 
+### Using pip
+
 ```bash
 $ pip install rotary-embedding-torch
+```
+
+### Using uv (recommended for development)
+
+```bash
+$ uv add rotary-embedding-torch
+```
+
+### Development
+
+For development, clone the repository and install with test dependencies:
+
+```bash
+$ git clone https://github.com/lucidrains/rotary-embedding-torch
+$ cd rotary-embedding-torch
+$ uv sync  # create and install env
+$ uv run pytest  # run tests
 ```
 
 ## Usage
@@ -142,7 +161,7 @@ rotary_emb = RotaryEmbedding(
 
 ```bibtex
 @misc{su2021roformer,
-    title   = {RoFormer: Enhanced Transformer with Rotary Position Embedding}, 
+    title   = {RoFormer: Enhanced Transformer with Rotary Position Embedding},
     author  = {Jianlin Su and Yu Lu and Shengfeng Pan and Bo Wen and Yunfeng Liu},
     year    = {2021},
     eprint  = {2104.09864},
