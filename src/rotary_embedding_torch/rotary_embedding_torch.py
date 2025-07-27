@@ -10,8 +10,6 @@ from torch.amp import autocast
 from torch.nn import Module
 
 # helper functions
-
-
 def exists(val):
     return val is not None
 
@@ -34,9 +32,7 @@ def slice_at_dim(t, dim_slice: slice, *, dim):
 
 
 # rotary embedding helper functions
-
-
-def rotate_half(x):
+def rotate_half(x: torch.Tensor) -> torch.Tensor:
     x = rearrange(x, "... (d r) -> ... d r", r=2)
     x1, x2 = x.unbind(dim=-1)
     x = torch.stack((-x2, x1), dim=-1)
