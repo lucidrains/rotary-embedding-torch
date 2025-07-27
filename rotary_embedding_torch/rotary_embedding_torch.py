@@ -170,7 +170,7 @@ class RotaryEmbedding(Module):
 
     def get_seq_pos(self, seq_len, device = None, dtype = None, offset = 0):
         device = default(device, self.device)
-        dtype = default(dtype, self.cached_freqs.device)
+        dtype = default(dtype, self.cached_freqs.dtype)
 
         return (torch.arange(seq_len, device = device, dtype = dtype) + offset) / self.interpolate_factor
 
