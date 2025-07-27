@@ -1,0 +1,93 @@
+[project]
+name = "rotary-embedding-torch"
+version = "0.8.8"
+description = "Rotary Embedding - Pytorch"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Phil Wang", email = "lucidrains@gmail.com"}
+]
+keywords = [
+    "artificial intelligence",
+    "deep learning",
+    "positional embedding"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "einops>=0.7",
+    "torch>=2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/lucidrains/rotary-embedding-torch"
+Repository = "https://github.com/lucidrains/rotary-embedding-torch"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "coverage>=7.10.0",
+    "ruff>=0.12.5",
+]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+    "ANN", # annotations
+    "S",   # bandit
+    "A",   # builtins
+    "C4",  # comprehensions
+    "EM",  # errmsg
+    "ICN", # import-conventions
+    "PIE", # pie
+    "PT",  # pytest-style
+    "RSE", # raise
+    "RET", # return
+    "TID", # tidy-imports
+    "ARG", # unused-arguments
+    "TD",  # todos
+    "PL",  # pylint
+    "FLY", # flynt
+    "FA",  # flake8-future-annotations
+]
+
+[tool.pydoclint]
+style = "google"
+arg-type-hints-in-docstring = false
+check-return-types = false
+check-yield-types = false
+
+[tool.coverage.run]
+source = ["rotary_embedding_torch"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
