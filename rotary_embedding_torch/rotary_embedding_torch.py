@@ -109,7 +109,8 @@ class RotaryEmbedding(Module):
         # has some connection to NTK literature
         # https://www.reddit.com/r/LocalLLaMA/comments/14lz7j5/ntkaware_scaled_rope_allows_llama_models_to_have/
 
-        theta *= theta_rescale_factor ** (dim / (dim - 2))
+        if dim > 2:
+            theta *= theta_rescale_factor ** (dim / (dim - 2))
 
         self.freqs_for = freqs_for
 
