@@ -336,9 +336,13 @@ class RotaryEmbedding(Module):
             exists(self.cached_freqs) and \
             (offset + seq_len) <= self.cached_freqs_seq_len
         ):
+            if self.cached_freqs.device != t.device:
+                self.cached_freqs = self.cached_freqs.to(t.device)
             return self.cached_freqs[offset:(offset + seq_len)].detach()
 
         freqs = self.freqs
+        if freqs.device != t.device:
+            freqs = freqs.to(t.device)
 
         freqs = einsum('..., f -> ... f', t.type(freqs.dtype), freqs)
         freqs = repeat(freqs, '... n -> ... (n r)', r = 2)
