@@ -78,6 +78,8 @@ def apply_rotary_emb(
 
 def apply_learned_rotations(rotations, t, start_index = 0, freq_ranges = None):
     if exists(freq_ranges):
+        if freq_ranges.device != rotations.device:
+            freq_ranges = freq_ranges.to(device = rotations.device)
         rotations = einsum('..., f -> ... f', rotations, freq_ranges)
         rotations = rearrange(rotations, '... r f -> ... (r f)')
 
@@ -331,18 +333,20 @@ class RotaryEmbedding(Module):
             (offset + seq_len) <= self.cache_max_seq_len
         )
 
+        if self.cached_freqs.device != t.device:
+            self.cached_freqs = self.cached_freqs.to(device = t.device)
+            self.cached_freqs_seq_len = 0
+
         if (
             should_cache and \
             exists(self.cached_freqs) and \
             (offset + seq_len) <= self.cached_freqs_seq_len
         ):
-            if self.cached_freqs.device != t.device:
-                self.cached_freqs = self.cached_freqs.to(t.device)
-            return self.cached_freqs[offset:(offset + seq_len)].detach()
+            cached = self.cached_freqs[offset:(offset + seq_len)].detach()
+            cached = cached.to(device = t.device)
+            return cached
 
-        freqs = self.freqs
-        if freqs.device != t.device:
-            freqs = freqs.to(t.device)
+        freqs = self.freqs.to(device = t.device)
 
         freqs = einsum('..., f -> ... f', t.type(freqs.dtype), freqs)
         freqs = repeat(freqs, '... n -> ... (n r)', r = 2)
