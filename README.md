@@ -6,6 +6,8 @@ A standalone library for adding <a href="https://arxiv.org/abs/2104.09864">rotar
 
 My gut also tells me there is something <a href="https://www.nature.com/articles/s41593-021-00821-9">more</a> to rotations that can be exploited in artificial neural networks.
 
+[Potential successor](https://github.com/lucidrains/PoPE-pytorch)
+
 ## Install
 
 ```bash
