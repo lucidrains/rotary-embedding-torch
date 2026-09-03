@@ -26,6 +26,28 @@ def test_basic_usage():
     assert q_out.shape == q.shape
     assert k_out.shape == k.shape
 
+def test_odd_dimension_rotates_complete_pairs_and_preserves_remainder():
+    rotary_emb = RotaryEmbedding(dim = 9)
+    q = torch.randn(1, 2, 4, 9)
+
+    q_out = rotary_emb.rotate_queries_or_keys(q)
+
+    assert q_out.shape == q.shape
+    assert torch.equal(q_out[..., -1], q[..., -1])
+    assert rotary_emb.cached_freqs.shape[-1] == 8
+
+def test_odd_dimension_xpos_cache_matches_uncached_path():
+    rotary_emb = RotaryEmbedding(dim = 9, use_xpos = True)
+    q = torch.randn(1, 2, 4, 9)
+    k = torch.randn(1, 2, 4, 9)
+
+    q_out, k_out = rotary_emb.rotate_queries_and_keys(q, k)
+    q_cached, k_cached = rotary_emb.rotate_queries_and_keys(q, k)
+
+    assert torch.allclose(q_out, q_cached)
+    assert torch.allclose(k_out, k_cached)
+    assert rotary_emb.cached_scales.shape[-1] == 8
+
 def test_inference_key_value_cache():
     rotary_emb = RotaryEmbedding(dim = 32)
     q = torch.randn(1, 8, 1, 64)
