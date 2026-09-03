@@ -122,10 +122,15 @@ class RotaryEmbedding(Module):
         elif freqs_for == 'constant':
             freqs = torch.ones(num_freqs).float()
 
+        # Each frequency rotates a pair of features.  Keeping this derived
+        # width separate from ``dim`` lets odd feature dimensions rotate all
+        # complete pairs while leaving the final feature untouched.
+        self.rotary_dim = freqs.shape[-1] * 2
+
         self.cache_if_possible = cache_if_possible
         self.cache_max_seq_len = cache_max_seq_len
 
-        self.register_buffer('cached_freqs', torch.zeros(cache_max_seq_len, dim), persistent = False)
+        self.register_buffer('cached_freqs', torch.zeros(cache_max_seq_len, self.rotary_dim), persistent = False)
         self.cached_freqs_seq_len = 0
 
         self.freqs = nn.Parameter(freqs, requires_grad = learned_freq)
@@ -153,11 +158,11 @@ class RotaryEmbedding(Module):
         if not use_xpos:
             return
 
-        scale = (torch.arange(0, dim, 2) + 0.4 * dim) / (1.4 * dim)
+        scale = (torch.arange(0, self.rotary_dim, 2) + 0.4 * dim) / (1.4 * dim)
         self.scale_base = xpos_scale_base
 
         self.register_buffer('scale', scale, persistent = False)
-        self.register_buffer('cached_scales', torch.zeros(cache_max_seq_len, dim), persistent = False)
+        self.register_buffer('cached_scales', torch.zeros(cache_max_seq_len, self.rotary_dim), persistent = False)
         self.cached_scales_seq_len = 0
 
         # add apply_rotary_emb as static method
