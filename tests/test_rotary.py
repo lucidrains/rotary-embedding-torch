@@ -77,6 +77,22 @@ def test_interpolating_sequence_positions():
     freqs = rotary_emb(torch.arange(1024))
     assert freqs.shape[0] == 1024
 
+@pytest.mark.parametrize('dtype', [torch.float16, torch.bfloat16])
+def test_long_sequence_positions_exact_in_low_precision(dtype):
+    # get_seq_pos built the position arange in the query dtype; float16 /
+    # bfloat16 cannot represent every integer past 2048 / 256, so distinct
+    # positions on a long sequence collapsed onto the same rotary frequency.
+    rotary_emb = RotaryEmbedding(dim = 64, cache_if_possible = False)
+
+    seq_len = 4096
+    q = torch.randn(1, 4, seq_len, 64)
+
+    out_fp32 = rotary_emb.rotate_queries_or_keys(q)
+    out_low = rotary_emb.rotate_queries_or_keys(q.to(dtype))
+
+    tol = 1e-2 if dtype is torch.float16 else 6e-2
+    assert torch.allclose(out_fp32, out_low.float(), atol = tol)
+
 # fused flash attention tests
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason = 'CUDA not available')
