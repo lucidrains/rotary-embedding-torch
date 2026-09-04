@@ -172,6 +172,14 @@ class RotaryEmbedding(Module):
         device = default(device, self.device)
         dtype = default(dtype, self.cached_freqs.dtype)
 
+        # positions are integers and must stay exact - float16 / bfloat16 cannot
+        # represent every integer past 2048 / 256, which collapses distinct
+        # positions on long sequences. both consumers (`forward`, `get_scale`)
+        # upcast to float32 anyway, so widen a low-precision request here.
+
+        if dtype in (torch.float16, torch.bfloat16):
+            dtype = torch.float32
+
         return (torch.arange(seq_len, device = device, dtype = dtype) + offset) / self.interpolate_factor
 
     def rotate_queries_or_keys(self, t, seq_dim = None, offset = 0, scale = None):
