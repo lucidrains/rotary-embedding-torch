@@ -201,8 +201,8 @@ class RotaryEmbedding(Module):
         if self.use_xpos:
             seq = self.get_seq_pos(k_len, dtype = dtype, device = device)
 
-            q_scale = self.get_scale(seq[-q_len:]).type(dtype)
             k_scale = self.get_scale(seq).type(dtype)
+            q_scale = k_scale[-q_len:]
 
         rotated_q = self.rotate_queries_or_keys(q, seq_dim = seq_dim, scale = q_scale, offset = k_len - q_len + offset)
         rotated_k = self.rotate_queries_or_keys(k, seq_dim = seq_dim, scale = k_scale ** -1)
