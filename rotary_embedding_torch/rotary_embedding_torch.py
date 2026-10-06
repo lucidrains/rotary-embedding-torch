@@ -125,7 +125,7 @@ class RotaryEmbedding(Module):
         self.cache_if_possible = cache_if_possible
         self.cache_max_seq_len = cache_max_seq_len
 
-        self.register_buffer('cached_freqs', torch.zeros(cache_max_seq_len, dim), persistent = False)
+        self.register_buffer('cached_freqs', torch.zeros(cache_max_seq_len, freqs.numel() * 2), persistent = False)
         self.cached_freqs_seq_len = 0
 
         self.freqs = nn.Parameter(freqs, requires_grad = learned_freq)
