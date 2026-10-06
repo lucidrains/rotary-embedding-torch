@@ -303,7 +303,9 @@ class RotaryEmbedding(Module):
 
             pos = pos + offset
 
-            freqs = self.forward(pos, seq_len = dim)
+            # Axial offsets can be fractional or differentiable; the sequence
+            # cache stores only positions starting at zero.
+            freqs = self.forward(pos, seq_len = dim if not exists(offsets) else None)
 
             all_axis = [None] * len(dims)
             all_axis[ind] = Colon
