@@ -164,6 +164,10 @@ class RotaryEmbedding(Module):
 
         self.apply_rotary_emb = staticmethod(apply_rotary_emb)
 
+    def _load_from_state_dict(self, *args, **kwargs):
+        super()._load_from_state_dict(*args, **kwargs)
+        self.cached_freqs_seq_len = 0
+
     @property
     def device(self):
         return self.dummy.device
