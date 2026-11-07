@@ -80,7 +80,9 @@ def reference_flash_attention(
 
     # aggregate values
 
-    attn = sim.softmax(dim = -1)
+    fully_masked = (sim == float('-inf')).all(dim = -1, keepdim = True)
+    attn = sim.masked_fill(fully_masked, 0.).softmax(dim = -1)
+    attn = attn.masked_fill(fully_masked, 0.)
 
     return torch.einsum('b h i j, b h j d -> b h i d', attn, v)
 
