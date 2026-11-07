@@ -39,6 +39,14 @@ k = rotary_emb.rotate_queries_or_keys(k)
 
 If you do all the steps above correctly, you should see a dramatic improvement during training
 
+## Inverse Rotations
+
+To rotate in the opposite direction, as with QKVO RoPE where the rotation on the outputs is undone, pass `inverse = True`
+
+```python
+o = rotary_emb.rotate_queries_or_keys(o, inverse = True)
+```
+
 ## Inference Key-Value Cache
 
 When dealing with key / value caches at inference, the query position needs to be offset with the `key_value_seq_length - query_seq_length`

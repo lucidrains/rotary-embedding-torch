@@ -26,6 +26,24 @@ def test_basic_usage():
     assert q_out.shape == q.shape
     assert k_out.shape == k.shape
 
+def test_inverse_rotation():
+    rotary_emb = RotaryEmbedding(dim = 32)
+    t = torch.randn(1, 8, 1024, 64)
+
+    rotated = rotary_emb.rotate_queries_or_keys(t)
+    derotated = rotary_emb.rotate_queries_or_keys(rotated, inverse = True)
+
+    assert_allclose(derotated, t)
+
+    # functional api, partial rotation
+
+    freqs = rotary_emb(torch.arange(t.shape[-2]))
+
+    rotated = apply_rotary_emb(freqs, t, start_index = 16)
+    derotated = apply_rotary_emb(freqs, rotated, start_index = 16, inverse = True)
+
+    assert_allclose(derotated, t)
+
 def test_inference_key_value_cache():
     rotary_emb = RotaryEmbedding(dim = 32)
     q = torch.randn(1, 8, 1, 64)

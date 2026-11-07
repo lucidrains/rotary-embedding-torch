@@ -45,7 +45,8 @@ def apply_rotary_emb(
     start_index = 0,
     scale = 1.,
     seq_dim = -2,
-    freqs_seq_dim = None
+    freqs_seq_dim = None,
+    inverse = False
 ):
     dtype = t.dtype
 
@@ -66,6 +67,11 @@ def apply_rotary_emb(
     t_left = t[..., :start_index]
     t_middle = t[..., start_index:end_index]
     t_right = t[..., end_index:]
+
+    # inverse rotation
+
+    if inverse:
+        freqs = -freqs
 
     # Apply rotary embeddings without modifying t in place
     t_transformed = (t_middle * freqs.cos() * scale) + (rotate_half(t_middle) * freqs.sin() * scale)
@@ -174,7 +180,7 @@ class RotaryEmbedding(Module):
 
         return (torch.arange(seq_len, device = device, dtype = dtype) + offset) / self.interpolate_factor
 
-    def rotate_queries_or_keys(self, t, seq_dim = None, offset = 0, scale = None):
+    def rotate_queries_or_keys(self, t, seq_dim = None, offset = 0, scale = None, inverse = False):
         seq_dim = default(seq_dim, self.default_seq_dim)
 
         assert not self.use_xpos or exists(scale), 'you must use `.rotate_queries_and_keys` method instead and pass in both queries and keys, for length extrapolatable rotary embeddings'
@@ -188,7 +194,7 @@ class RotaryEmbedding(Module):
         if seq_dim == -3:
             freqs = rearrange(freqs, 'n d -> n 1 d')
 
-        return apply_rotary_emb(freqs, t, scale = default(scale, 1.), seq_dim = seq_dim)
+        return apply_rotary_emb(freqs, t, scale = default(scale, 1.), seq_dim = seq_dim, inverse = inverse)
 
     def rotate_queries_with_cached_keys(self, q, k, seq_dim = None, offset = 0):
         dtype, device, seq_dim = q.dtype, q.device, default(seq_dim, self.default_seq_dim)
