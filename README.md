@@ -176,6 +176,22 @@ out = flash_attn_with_rotary(
 )
 ```
 
+## YaRN context extension
+
+For a model trained at 2048 positions, use `factor = 4` for an 8192-position target window.
+Compute the angles once and reuse them across layers. Both queries and keys use the same scale.
+
+```python
+from rotary_embedding_torch import get_yarn_freqs, apply_rotary_emb
+
+positions = torch.arange(k.shape[-2], device = k.device)
+freqs, scale = get_yarn_freqs(positions, dim = 64, original_max_seq_len = 2048, factor = 4)
+k = apply_rotary_emb(freqs, k, scale = scale)
+q = apply_rotary_emb(freqs[-q.shape[-2]:], q, scale = scale)
+```
+
+See the [YaRN paper](https://arxiv.org/abs/2309.00071) for the frequency bands and attention temperature.
+
 ## Citations
 
 ```bibtex
