@@ -180,12 +180,29 @@ class RotaryEmbedding(Module):
 
         return (torch.arange(seq_len, device = device, dtype = dtype) + offset) / self.interpolate_factor
 
-    def rotate_queries_or_keys(self, t, seq_dim = None, offset = 0, scale = None, inverse = False):
+    def rotate_queries_or_keys(self, t, seq_dim = None, offset = 0, scale = None, inverse = False, position_ids = None):
         seq_dim = default(seq_dim, self.default_seq_dim)
 
         assert not self.use_xpos or exists(scale), 'you must use `.rotate_queries_and_keys` method instead and pass in both queries and keys, for length extrapolatable rotary embeddings'
 
         device, dtype, seq_len = t.device, t.dtype, t.shape[seq_dim]
+
+        if exists(position_ids):
+            seq_axis = seq_dim % t.ndim
+            if position_ids.ndim not in (1, 2) or position_ids.shape[-1] != seq_len:
+                raise ValueError('position_ids must have shape (seq,) or (batch, seq)')
+            if position_ids.ndim == 2 and (seq_axis == 0 or position_ids.shape[0] != t.shape[0]):
+                raise ValueError('position_ids batch dimension must match the input')
+            positions = position_ids.to(device) + offset
+            freqs = self.forward(positions / self.interpolate_factor)
+            shape = [1] * t.ndim
+            shape[seq_axis], shape[-1] = seq_len, freqs.shape[-1]
+            if position_ids.ndim == 2:
+                shape[0] = position_ids.shape[0]
+            return apply_rotary_emb(
+                freqs.reshape(shape), t, scale = default(scale, 1.),
+                seq_dim = seq_dim, freqs_seq_dim = seq_axis, inverse = inverse
+            )
 
         seq = self.get_seq_pos(seq_len, device = device, dtype = dtype, offset = offset)
 

@@ -66,6 +66,15 @@ You can also do this manually like so
 q = rotary_emb.rotate_queries_or_keys(q, offset = k.shape[-2] - q.shape[-2])
 ```
 
+For packed sequences, pass the position of each token. A `(seq,)` tensor is shared
+by the batch; a `(batch, seq)` tensor lets each example restart positions at its
+own document boundaries. Use the same positions for the corresponding keys.
+
+```python
+q = rotary_emb.rotate_queries_or_keys(q, position_ids = positions)
+k = rotary_emb.rotate_queries_or_keys(k, position_ids = positions)
+```
+
 ## Axial Rotary Embeddings
 
 For easy use of n-dimensional axial relative positional embedding, ie. video transformers

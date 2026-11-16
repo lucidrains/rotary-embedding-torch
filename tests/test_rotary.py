@@ -26,6 +26,20 @@ def test_basic_usage():
     assert q_out.shape == q.shape
     assert k_out.shape == k.shape
 
+@pytest.mark.parametrize('seq_dim', [-2, -3])
+def test_batched_position_ids(seq_dim):
+    rotary = RotaryEmbedding(dim = 8, interpolate_factor = 2.)
+    t = torch.randn(3, 2, 5, 12)
+    ids = torch.tensor([[0, 1, 0, 1, 2], [0, 1, 2, 3, 4], [3, 2, 1, 0, 0]])
+    if seq_dim == -3:
+        t = t.transpose(1, 2)
+    actual = rotary.rotate_queries_or_keys(t, seq_dim = seq_dim, position_ids = ids)
+    for b, row in enumerate(ids):
+        for i, pos in enumerate(row.tolist()):
+            token = t[b].narrow(seq_dim, i, 1)
+            expected = rotary.rotate_queries_or_keys(token, seq_dim = seq_dim, offset = pos)
+            torch.testing.assert_close(actual[b].narrow(seq_dim, i, 1), expected)
+
 def test_inverse_rotation():
     rotary_emb = RotaryEmbedding(dim = 32)
     t = torch.randn(1, 8, 1024, 64)
