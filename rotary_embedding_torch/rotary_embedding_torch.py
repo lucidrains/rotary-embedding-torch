@@ -1,5 +1,5 @@
 from __future__ import annotations
-from math import pi, log
+from math import ceil, floor, pi, log
 
 import torch
 from torch.amp import autocast
@@ -31,6 +31,39 @@ def slice_at_dim(t, dim_slice: slice, *, dim):
     return t[tuple(colons)]
 
 # rotary embedding helper functions
+
+def get_yarn_freqs(
+    positions: Tensor,
+    dim: int,
+    *,
+    original_max_seq_len: int,
+    factor: float,
+    theta = 10000.,
+    beta_fast = 32.,
+    beta_slow = 1.
+):
+    """Return YaRN angles and the scale to apply to both queries and keys."""
+    if dim < 2 or dim % 2:
+        raise ValueError('rotary dimension must be positive and even')
+    if original_max_seq_len < 1 or factor < 1 or theta <= 1 or not 0 < beta_slow < beta_fast:
+        raise ValueError('invalid YaRN context length, scale, base or rotation bounds')
+
+    bands = torch.arange(dim // 2, device = positions.device, dtype = torch.float32)
+    inv_freq = theta ** (-2 * bands / dim)
+
+    # Locate the bands completing beta_fast and beta_slow turns in the training window.
+    def band_at(turns):
+        return dim * log(original_max_seq_len / (2 * pi * turns)) / (2 * log(theta))
+
+    low = max(0, floor(band_at(beta_fast)))
+    high = min(dim - 1, ceil(band_at(beta_slow)))
+    if high < 0:
+        ramp = torch.ones_like(bands)
+    else:
+        ramp = ((bands - low) / max(high - low, 1)).clamp(0, 1)
+    inv_freq = torch.lerp(inv_freq, inv_freq / factor, ramp)
+    angles = positions.float().unsqueeze(-1) * inv_freq
+    return repeat(angles, '... f -> ... (f r)', r = 2), 1 + 0.1 * log(factor)
 
 def rotate_half(x):
     x = rearrange(x, '... (d r) -> ... d r', r = 2)

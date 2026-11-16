@@ -2,6 +2,7 @@ import pytest
 import torch
 
 from rotary_embedding_torch import (
+    get_yarn_freqs,
     RotaryEmbedding,
     apply_rotary_emb
 )
@@ -25,6 +26,34 @@ def test_basic_usage():
 
     assert q_out.shape == q.shape
     assert k_out.shape == k.shape
+
+def test_yarn_frequency_bands():
+    # With these bounds the transition spans bands 1 through 3.
+    positions = torch.tensor([0, 1, 8193])
+    angles, scale = get_yarn_freqs(positions, 8, original_max_seq_len = 25, factor = 4,
+                                    theta = 16, beta_fast = 1.5, beta_slow = 0.75)
+    expected = torch.tensor([1., 0.5, 0.25 * 0.625, 0.125 / 4]).repeat_interleave(2)
+    torch.testing.assert_close(angles, positions[:, None] * expected)
+    assert scale == pytest.approx(1.1386294361)
+
+def test_yarn_factor_one():
+    positions = torch.arange(32)
+    freqs, scale = get_yarn_freqs(positions, 64, original_max_seq_len = 2048, factor = 1)
+    torch.testing.assert_close(freqs, RotaryEmbedding(64)(positions))
+    assert scale == 1.
+
+def test_yarn_cached_query_matches_full_attention():
+    torch.manual_seed(0)
+    q, k, v = torch.randn(3, 1, 2, 17, 48)
+    positions = torch.arange(4096, 4113)
+    angles, scale = get_yarn_freqs(positions, 32, original_max_seq_len = 2048, factor = 4)
+    q_full = apply_rotary_emb(angles, q, scale = scale)
+    k = apply_rotary_emb(angles, k, scale = scale)
+    last, scale = get_yarn_freqs(positions[-1:], 32, original_max_seq_len = 2048, factor = 4)
+    q_last = apply_rotary_emb(last, q[..., -1:, :], scale = scale)
+    attend = torch.nn.functional.scaled_dot_product_attention
+    torch.testing.assert_close(attend(q_last, k, v), attend(q_full, k, v)[..., -1:, :])
+    torch.testing.assert_close(q_full[..., 32:], q[..., 32:])
 
 def test_inverse_rotation():
     rotary_emb = RotaryEmbedding(dim = 32)
